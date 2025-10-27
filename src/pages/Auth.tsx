@@ -9,19 +9,22 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 const authSchema = z.object({
-  phone: z.string().min(10, "Phone number must be at least 10 digits"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  phone: z.string().min(10, "Phone number must be at least 10 digits").optional(),
 });
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
-    phone: "",
-    otp: "",
+    email: "",
+    password: "",
     name: "",
+    phone: "",
   });
 
   useEffect(() => {
@@ -40,70 +43,70 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       const validated = authSchema.parse(formData);
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: validated.phone,
+      const { data, error } = await supabase.auth.signUp({
+        email: validated.email,
+        password: validated.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        },
       });
 
       if (error) throw error;
 
-      setOtpSent(true);
+      // Update profile with name and phone if provided
+      if (data.user) {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: validated.email,
+          name: validated.name || "",
+          phone: validated.phone || "",
+        });
+      }
+
       toast({
-        title: "OTP Sent!",
-        description: "Check your phone for the verification code",
+        title: "Success!",
+        description: "Account created successfully",
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Failed to send OTP",
-        description: error.message || "Please check your phone number",
+        title: "Sign up failed",
+        description: error.message,
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.verifyOtp({
-        phone: formData.phone,
-        token: formData.otp,
-        type: 'sms',
+      const { error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
       });
 
       if (error) throw error;
 
-      // Update profile with name if provided
-      if (formData.name) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            phone: formData.phone,
-            name: formData.name,
-          });
-        }
-      }
-
       toast({
-        title: "Welcome!",
+        title: "Welcome back!",
         description: "Successfully logged in to RaidBook",
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Verification failed",
-        description: error.message || "Invalid OTP code",
+        title: "Sign in failed",
+        description: error.message,
       });
     } finally {
       setLoading(false);
@@ -122,18 +125,21 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!otpSent ? (
-            <form onSubmit={handleSendOTP} className="space-y-4">
+          <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+            {isSignUp && (
               <div className="space-y-2">
-                <Label htmlFor="name">Name (Optional)</Label>
+                <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
                   type="text"
                   placeholder="Your name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
                 />
               </div>
+            )}
+            {isSignUp && (
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
@@ -142,40 +148,43 @@ const Auth = () => {
                   placeholder="+91 9876543210"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Sending OTP..." : "Send OTP"}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOTP} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="otp">Enter OTP</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  placeholder="123456"
-                  value={formData.otp}
-                  onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
-                  required
-                  maxLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Verifying..." : "Verify OTP"}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => setOtpSent(false)}
-              >
-                Change Phone Number
-              </Button>
-            </form>
-          )}
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (isSignUp ? "Creating account..." : "Signing in...") : (isSignUp ? "Sign Up" : "Sign In")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
+              {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
