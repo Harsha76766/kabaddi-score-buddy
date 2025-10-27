@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy, UserPlus } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import { AddTeamDialog } from "@/components/AddTeamDialog";
+import AddPlayerDialog from "@/components/AddPlayerDialog";
 
 interface Tournament {
   id: string;
@@ -65,12 +67,15 @@ interface PlayerStats {
 const TournamentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<TournamentTeam[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [playerStats, setPlayerStats] = useState<PlayerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOrganizer, setIsOrganizer] = useState(false);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) fetchTournamentData();
@@ -329,17 +334,32 @@ const TournamentDetail = () => {
                   <Card key={team.id}>
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1">
                           <h3 className="font-semibold text-lg">{team.teams.name}</h3>
                           <p className="text-sm text-muted-foreground">
                             Captain: {team.teams.captain_name}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold text-primary">{team.points} pts</div>
-                          <div className="text-xs text-muted-foreground">
-                            {team.wins}W - {team.losses}L
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-primary">{team.points} pts</div>
+                            <div className="text-xs text-muted-foreground">
+                              {team.wins}W - {team.losses}L
+                            </div>
                           </div>
+                          {isOrganizer && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedTeamId(team.teams.id);
+                                setAddPlayerOpen(true);
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4 mr-1" />
+                              Add Player
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -440,6 +460,21 @@ const TournamentDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {selectedTeamId && (
+        <AddPlayerDialog
+          open={addPlayerOpen}
+          onOpenChange={setAddPlayerOpen}
+          teamId={selectedTeamId}
+          onPlayerAdded={() => {
+            toast({
+              title: "Success",
+              description: "Player added to team successfully",
+            });
+            setAddPlayerOpen(false);
+          }}
+        />
+      )}
 
       <BottomNav />
     </div>
