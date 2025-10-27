@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { Calendar, MapPin } from "lucide-react";
+import { format } from "date-fns";
+import BottomNav from "@/components/BottomNav";
 
 const Matches = () => {
   const navigate = useNavigate();
@@ -21,11 +21,7 @@ const Matches = () => {
     try {
       const { data, error } = await supabase
         .from("matches")
-        .select(`
-          *,
-          team_a:teams!matches_team_a_id_fkey(name),
-          team_b:teams!matches_team_b_id_fkey(name)
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -41,88 +37,69 @@ const Matches = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "live":
-        return <Badge className="bg-accent">Live</Badge>;
-      case "completed":
-        return <Badge variant="secondary">Completed</Badge>;
-      default:
-        return <Badge variant="outline">Upcoming</Badge>;
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-hero p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            onClick={() => navigate("/")}
-            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-white">Matches</h1>
-            <p className="text-white/80">Match history and results</p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background pb-20">
+      <div className="bg-gradient-hero p-6 text-white">
+        <h1 className="text-2xl font-bold mb-2">My Matches</h1>
+        <p className="text-white/80">View your match history</p>
+      </div>
 
+      <div className="p-4 -mt-4 space-y-4">
         {loading ? (
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 bg-card rounded-lg animate-pulse" />
+            ))}
           </div>
         ) : matches.length === 0 ? (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Trophy className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                No matches yet. Create your first match to get started!
-              </p>
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground">No matches found</p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {matches.map((match) => (
-              <Card
-                key={match.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => {
-                  if (match.status === "live") {
-                    navigate(`/match/${match.id}`);
-                  } else if (match.status === "completed") {
-                    navigate(`/match/${match.id}/summary`);
-                  }
-                }}
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{match.match_name}</CardTitle>
-                    {getStatusBadge(match.status)}
+          matches.map((match) => (
+            <Card
+              key={match.id}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => navigate(`/match/${match.id}/summary`)}
+            >
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">{match.match_name}</CardTitle>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>{format(new Date(match.match_date), 'PPP')}</span>
+                </div>
+                {match.venue && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    <span>{match.venue}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {match.venue} • {new Date(match.match_date).toLocaleDateString()}
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4 items-center">
-                    <div className="text-center">
-                      <p className="text-sm font-medium">{match.team_a?.name}</p>
-                      <p className="text-3xl font-bold text-team-red">{match.team_a_score}</p>
-                    </div>
-                    <div className="text-center text-sm text-muted-foreground">VS</div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium">{match.team_b?.name}</p>
-                      <p className="text-3xl font-bold text-team-blue">{match.team_b_score}</p>
-                    </div>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <span className="font-medium">Status:</span>{" "}
+                    <span className={`capitalize ${
+                      match.status === 'completed' ? 'text-success' : 
+                      match.status === 'live' ? 'text-primary' : 
+                      'text-muted-foreground'
+                    }`}>
+                      {match.status}
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <div className="text-sm">
+                    <span className="font-medium">Score:</span> {match.team_a_score} - {match.team_b_score}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
+      
+      <BottomNav />
     </div>
   );
 };

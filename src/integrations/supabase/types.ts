@@ -28,6 +28,7 @@ export type Database = {
           team_a_score: number | null
           team_b_id: string | null
           team_b_score: number | null
+          tournament_id: string | null
           venue: string | null
         }
         Insert: {
@@ -43,6 +44,7 @@ export type Database = {
           team_a_score?: number | null
           team_b_id?: string | null
           team_b_score?: number | null
+          tournament_id?: string | null
           venue?: string | null
         }
         Update: {
@@ -58,6 +60,7 @@ export type Database = {
           team_a_score?: number | null
           team_b_id?: string | null
           team_b_score?: number | null
+          tournament_id?: string | null
           venue?: string | null
         }
         Relationships: [
@@ -80,6 +83,13 @@ export type Database = {
             columns: ["team_b_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
             referencedColumns: ["id"]
           },
         ]
@@ -172,25 +182,34 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string | null
-          email: string
+          email: string | null
           id: string
           name: string
+          phone: string | null
           role: string | null
+          team_name: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string | null
-          email: string
+          email?: string | null
           id: string
           name: string
+          phone?: string | null
           role?: string | null
+          team_name?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string | null
-          email?: string
+          email?: string | null
           id?: string
           name?: string
+          phone?: string | null
           role?: string | null
+          team_name?: string | null
         }
         Relationships: []
       }
@@ -220,6 +239,65 @@ export type Database = {
           {
             foreignKeyName: "teams_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          category: string
+          city: string
+          created_at: string | null
+          end_date: string
+          ground: string
+          id: string
+          logo_url: string | null
+          name: string
+          organizer_email: string | null
+          organizer_id: string
+          organizer_name: string
+          organizer_phone: string
+          start_date: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          city: string
+          created_at?: string | null
+          end_date: string
+          ground: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          organizer_email?: string | null
+          organizer_id: string
+          organizer_name: string
+          organizer_phone: string
+          start_date: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          city?: string
+          created_at?: string | null
+          end_date?: string
+          ground?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          organizer_email?: string | null
+          organizer_id?: string
+          organizer_name?: string
+          organizer_phone?: string
+          start_date?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournaments_organizer_id_fkey"
+            columns: ["organizer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
