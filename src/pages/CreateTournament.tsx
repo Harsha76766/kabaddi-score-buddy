@@ -17,6 +17,7 @@ const tournamentSchema = z.object({
   start_date: z.string(),
   end_date: z.string(),
   category: z.string(),
+  tournament_type: z.string(),
 });
 
 const categories = [
@@ -30,11 +31,14 @@ const categories = [
   "Other",
 ];
 
+const tournamentTypes = ["League", "Knockout", "Round Robin"];
+
 const CreateTournament = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     city: "",
@@ -43,11 +47,24 @@ const CreateTournament = () => {
     start_date: "",
     end_date: "",
     category: "Open",
+    tournament_type: "League",
+    half_duration: "20",
+    players_per_team: "7",
+    points_win: "2",
+    points_tie: "1",
+    points_loss: "0",
+    tie_breaker: "Score Difference",
   });
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setLogoFile(e.target.files[0]);
+    }
+  };
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setCoverFile(e.target.files[0]);
     }
   };
 
@@ -69,12 +86,13 @@ const CreateTournament = () => {
         .single();
 
       let logoUrl = null;
+      let coverUrl = null;
 
       // Upload logo if provided
       if (logoFile) {
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        const { error: uploadError, data } = await supabase.storage
+        const fileName = `logo-${user.id}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
           .from('tournament-logos')
           .upload(fileName, logoFile);
 
@@ -85,6 +103,23 @@ const CreateTournament = () => {
           .getPublicUrl(fileName);
         
         logoUrl = publicUrl;
+      }
+
+      // Upload cover if provided
+      if (coverFile) {
+        const fileExt = coverFile.name.split('.').pop();
+        const fileName = `cover-${user.id}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('tournament-logos')
+          .upload(fileName, coverFile);
+
+        if (uploadError) throw uploadError;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('tournament-logos')
+          .getPublicUrl(fileName);
+        
+        coverUrl = publicUrl;
       }
 
       // Create tournament
@@ -99,7 +134,22 @@ const CreateTournament = () => {
         start_date: validated.start_date,
         end_date: validated.end_date,
         category: validated.category,
+        tournament_type: validated.tournament_type,
         logo_url: logoUrl,
+        cover_url: coverUrl,
+        status: 'Draft',
+        match_format: {
+          half_duration: parseInt(formData.half_duration),
+          players_per_team: parseInt(formData.players_per_team),
+        },
+        rules_json: {
+          points_system: {
+            win: parseInt(formData.points_win),
+            tie: parseInt(formData.points_tie),
+            loss: parseInt(formData.points_loss),
+          },
+          tie_breaker: formData.tie_breaker,
+        },
       });
 
       if (error) throw error;
@@ -143,24 +193,50 @@ const CreateTournament = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="logo">Tournament Logo</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="logo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoChange}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => document.getElementById('logo')?.click()}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    {logoFile ? logoFile.name : 'Upload Logo'}
-                  </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="logo">Tournament Logo</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="logo"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoChange}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => document.getElementById('logo')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {logoFile ? 'Logo ✓' : 'Upload Logo'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cover">Cover Photo</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="cover"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCoverChange}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => document.getElementById('cover')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {coverFile ? 'Cover ✓' : 'Upload Cover'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -232,21 +308,125 @@ const CreateTournament = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tournament_type">Tournament Type</Label>
+                  <Select
+                    value={formData.tournament_type}
+                    onValueChange={(value) => setFormData({ ...formData, tournament_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tournamentTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Match Format</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="half_duration" className="text-sm text-muted-foreground">
+                      Half Duration (mins)
+                    </Label>
+                    <Input
+                      id="half_duration"
+                      type="number"
+                      min="10"
+                      max="30"
+                      value={formData.half_duration}
+                      onChange={(e) => setFormData({ ...formData, half_duration: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="players_per_team" className="text-sm text-muted-foreground">
+                      Players per Team
+                    </Label>
+                    <Input
+                      id="players_per_team"
+                      type="number"
+                      min="5"
+                      max="12"
+                      value={formData.players_per_team}
+                      onChange={(e) => setFormData({ ...formData, players_per_team: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Points System</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="points_win" className="text-sm text-muted-foreground">Win</Label>
+                    <Input
+                      id="points_win"
+                      type="number"
+                      min="0"
+                      value={formData.points_win}
+                      onChange={(e) => setFormData({ ...formData, points_win: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="points_tie" className="text-sm text-muted-foreground">Tie</Label>
+                    <Input
+                      id="points_tie"
+                      type="number"
+                      min="0"
+                      value={formData.points_tie}
+                      onChange={(e) => setFormData({ ...formData, points_tie: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="points_loss" className="text-sm text-muted-foreground">Loss</Label>
+                    <Input
+                      id="points_loss"
+                      type="number"
+                      min="0"
+                      value={formData.points_loss}
+                      onChange={(e) => setFormData({ ...formData, points_loss: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="tie_breaker">Tie-Breaking Criteria</Label>
                 <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  value={formData.tie_breaker}
+                  onValueChange={(value) => setFormData({ ...formData, tie_breaker: value })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="Score Difference">Score Difference</SelectItem>
+                    <SelectItem value="Head-to-Head">Head-to-Head</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

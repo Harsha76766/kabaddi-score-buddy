@@ -22,7 +22,11 @@ export type Database = {
           id: string
           match_date: string | null
           match_name: string
+          match_number: number | null
+          match_time: string | null
           match_type: string | null
+          referee_id: string | null
+          scorer_id: string | null
           status: string | null
           team_a_id: string | null
           team_a_score: number | null
@@ -38,7 +42,11 @@ export type Database = {
           id?: string
           match_date?: string | null
           match_name: string
+          match_number?: number | null
+          match_time?: string | null
           match_type?: string | null
+          referee_id?: string | null
+          scorer_id?: string | null
           status?: string | null
           team_a_id?: string | null
           team_a_score?: number | null
@@ -54,7 +62,11 @@ export type Database = {
           id?: string
           match_date?: string | null
           match_name?: string
+          match_number?: number | null
+          match_time?: string | null
           match_type?: string | null
+          referee_id?: string | null
+          scorer_id?: string | null
           status?: string | null
           team_a_id?: string | null
           team_a_score?: number | null
@@ -339,49 +351,64 @@ export type Database = {
         Row: {
           category: string
           city: string
+          cover_url: string | null
           created_at: string | null
           end_date: string
           ground: string
           id: string
           logo_url: string | null
+          match_format: Json | null
           name: string
           organizer_email: string | null
           organizer_id: string
           organizer_name: string
           organizer_phone: string
+          rules_json: Json | null
           start_date: string
+          status: string | null
+          tournament_type: string | null
           updated_at: string | null
         }
         Insert: {
           category: string
           city: string
+          cover_url?: string | null
           created_at?: string | null
           end_date: string
           ground: string
           id?: string
           logo_url?: string | null
+          match_format?: Json | null
           name: string
           organizer_email?: string | null
           organizer_id: string
           organizer_name: string
           organizer_phone: string
+          rules_json?: Json | null
           start_date: string
+          status?: string | null
+          tournament_type?: string | null
           updated_at?: string | null
         }
         Update: {
           category?: string
           city?: string
+          cover_url?: string | null
           created_at?: string | null
           end_date?: string
           ground?: string
           id?: string
           logo_url?: string | null
+          match_format?: Json | null
           name?: string
           organizer_email?: string | null
           organizer_id?: string
           organizer_name?: string
           organizer_phone?: string
+          rules_json?: Json | null
           start_date?: string
+          status?: string | null
+          tournament_type?: string | null
           updated_at?: string | null
         }
         Relationships: [

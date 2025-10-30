@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy, UserPlus } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy, UserPlus, Rocket } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
 import { AddTeamDialog } from "@/components/AddTeamDialog";
 import AddPlayerDialog from "@/components/AddPlayerDialog";
+import { CreateMatchDialog } from "@/components/CreateMatchDialog";
 
 interface Tournament {
   id: string;
@@ -26,6 +27,8 @@ interface Tournament {
   end_date: string;
   category: string;
   logo_url: string | null;
+  status: string;
+  tournament_type: string;
 }
 
 interface TournamentTeam {
@@ -76,6 +79,7 @@ const TournamentDetail = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     if (id) fetchTournamentData();
@@ -213,6 +217,35 @@ const TournamentDetail = () => {
     }
   };
 
+  const handlePublish = async () => {
+    if (!tournament) return;
+    
+    setPublishing(true);
+    try {
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ status: 'Active' })
+        .eq('id', tournament.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Tournament Published!",
+        description: "Your tournament is now visible to everyone",
+      });
+
+      await fetchTournament();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to publish tournament",
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -259,10 +292,31 @@ const TournamentDetail = () => {
             />
           )}
           <div className="flex-1">
-            <h1 className="text-2xl font-bold mb-2">{tournament.name}</h1>
-            <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
-              {tournament.category}
-            </span>
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-2xl font-bold">{tournament.name}</h1>
+              {isOrganizer && tournament.status === 'Draft' && (
+                <Button
+                  size="sm"
+                  className="bg-white text-primary hover:bg-white/90"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                >
+                  <Rocket className="h-4 w-4 mr-1" />
+                  {publishing ? "Publishing..." : "Publish"}
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
+                {tournament.category}
+              </span>
+              <Badge variant={tournament.status === 'Active' ? 'default' : 'secondary'}>
+                {tournament.status}
+              </Badge>
+              <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
+                {tournament.tournament_type}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -369,7 +423,17 @@ const TournamentDetail = () => {
             )}
           </TabsContent>
           
-          <TabsContent value="matches" className="mt-4">
+          <TabsContent value="matches" className="mt-4 space-y-4">
+            {isOrganizer && (
+              <div className="flex justify-end">
+                <CreateMatchDialog
+                  tournamentId={id!}
+                  teams={teams.map(t => ({ id: t.teams.id, name: t.teams.name }))}
+                  onMatchCreated={fetchTournamentData}
+                />
+              </div>
+            )}
+            
             {matches.length === 0 ? (
               <Card>
                 <CardContent className="pt-6 text-center text-muted-foreground">
