@@ -527,15 +527,13 @@ const TournamentDetail = () => {
 
       {selectedTeamId && (
         <AddPlayerDialog
-          open={addPlayerOpen}
-          onOpenChange={setAddPlayerOpen}
           teamId={selectedTeamId}
           onPlayerAdded={() => {
             toast({
               title: "Success",
               description: "Player added to team successfully",
             });
-            setAddPlayerOpen(false);
+            fetchTournamentData();
           }}
         />
       )}

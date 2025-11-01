@@ -155,10 +155,18 @@ const Teams = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {teams.map((team) => (
-              <Card key={team.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={team.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/teams/${team.id}`)}
+              >
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
+                    {team.logo_url ? (
+                      <img src={team.logo_url} alt={team.name} className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <Users className="w-5 h-5 text-primary" />
+                    )}
                     {team.name}
                   </CardTitle>
                 </CardHeader>
@@ -166,6 +174,9 @@ const Teams = () => {
                   <p className="text-sm text-muted-foreground">
                     Captain: <span className="font-medium text-foreground">{team.captain_name}</span>
                   </p>
+                  {team.captain_phone && (
+                    <p className="text-xs text-muted-foreground mt-1">{team.captain_phone}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}

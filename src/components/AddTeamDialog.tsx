@@ -19,6 +19,8 @@ export const AddTeamDialog = ({ tournamentId, onTeamAdded }: AddTeamDialogProps)
   const [loading, setLoading] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamCaptain, setNewTeamCaptain] = useState("");
+  const [captainPhone, setCaptainPhone] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [myTeams, setMyTeams] = useState<any[]>([]);
   const [inviteLink, setInviteLink] = useState("");
   const { toast } = useToast();
@@ -43,8 +45,8 @@ export const AddTeamDialog = ({ tournamentId, onTeamAdded }: AddTeamDialogProps)
   };
 
   const handleCreateNewTeam = async () => {
-    if (!newTeamName || !newTeamCaptain) {
-      toast({ title: "Please fill all fields", variant: "destructive" });
+    if (!newTeamName || !newTeamCaptain || !captainPhone) {
+      toast({ title: "Please fill all required fields", variant: "destructive" });
       return;
     }
 
@@ -52,9 +54,33 @@ export const AddTeamDialog = ({ tournamentId, onTeamAdded }: AddTeamDialogProps)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    let logoUrl = null;
+    
+    // Upload logo if provided
+    if (logoFile) {
+      const fileExt = logoFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const { error: uploadError, data } = await supabase.storage
+        .from('team-logos')
+        .upload(fileName, logoFile);
+
+      if (!uploadError) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('team-logos')
+          .getPublicUrl(fileName);
+        logoUrl = publicUrl;
+      }
+    }
+
     const { data: team, error: teamError } = await supabase
       .from("teams")
-      .insert({ name: newTeamName, captain_name: newTeamCaptain, created_by: user.id })
+      .insert({ 
+        name: newTeamName, 
+        captain_name: newTeamCaptain,
+        captain_phone: captainPhone,
+        logo_url: logoUrl,
+        created_by: user.id 
+      })
       .select()
       .single();
 
@@ -151,6 +177,23 @@ export const AddTeamDialog = ({ tournamentId, onTeamAdded }: AddTeamDialogProps)
                 value={newTeamCaptain}
                 onChange={(e) => setNewTeamCaptain(e.target.value)}
                 placeholder="Enter captain name"
+              />
+            </div>
+            <div>
+              <Label>Captain Phone Number</Label>
+              <Input
+                value={captainPhone}
+                onChange={(e) => setCaptainPhone(e.target.value)}
+                placeholder="Enter phone number"
+                type="tel"
+              />
+            </div>
+            <div>
+              <Label>Team Logo (Optional)</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
               />
             </div>
             <Button onClick={handleCreateNewTeam} disabled={loading} className="w-full">

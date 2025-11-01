@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Tournament from "./pages/Tournament";
 import CreateTournament from "./pages/CreateTournament";
 import TournamentDetail from "./pages/TournamentDetail";
+import TeamDetail from "./pages/TeamDetail";
 import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/tournaments" element={<ProtectedRoute><Tournament /></ProtectedRoute>} />
           <Route path="/tournaments/create" element={<ProtectedRoute><CreateTournament /></ProtectedRoute>} />
           <Route path="/tournaments/:id" element={<ProtectedRoute><TournamentDetail /></ProtectedRoute>} />
+          <Route path="/teams/:id" element={<ProtectedRoute><TeamDetail /></ProtectedRoute>} />
           <Route path="/matches" element={<ProtectedRoute><Matches /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

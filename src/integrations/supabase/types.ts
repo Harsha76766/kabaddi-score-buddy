@@ -157,6 +157,7 @@ export type Database = {
           id: string
           matches_played: number | null
           name: string
+          phone: string | null
           team_id: string | null
           total_bonus_points: number | null
           total_raid_points: number | null
@@ -167,6 +168,7 @@ export type Database = {
           id?: string
           matches_played?: number | null
           name: string
+          phone?: string | null
           team_id?: string | null
           total_bonus_points?: number | null
           total_raid_points?: number | null
@@ -177,6 +179,7 @@ export type Database = {
           id?: string
           matches_played?: number | null
           name?: string
+          phone?: string | null
           team_id?: string | null
           total_bonus_points?: number | null
           total_raid_points?: number | null
@@ -273,23 +276,29 @@ export type Database = {
       teams: {
         Row: {
           captain_name: string
+          captain_phone: string | null
           created_at: string | null
           created_by: string | null
           id: string
+          logo_url: string | null
           name: string
         }
         Insert: {
           captain_name: string
+          captain_phone?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          logo_url?: string | null
           name: string
         }
         Update: {
           captain_name?: string
+          captain_phone?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
         }
         Relationships: [

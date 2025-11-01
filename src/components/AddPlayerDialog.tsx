@@ -15,14 +15,13 @@ const playerSchema = z.object({
 });
 
 interface AddPlayerDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   teamId: string;
   onPlayerAdded: () => void;
 }
 
-const AddPlayerDialog = ({ open, onOpenChange, teamId, onPlayerAdded }: AddPlayerDialogProps) => {
+export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps) => {
   const { toast } = useToast();
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [playerPhone, setPlayerPhone] = useState("");
@@ -34,8 +33,41 @@ const AddPlayerDialog = ({ open, onOpenChange, teamId, onPlayerAdded }: AddPlaye
       const validated = playerSchema.parse({ name: playerName, phone: playerPhone });
       setLoading(true);
 
+      // Check if player already exists by phone number
+      if (playerPhone) {
+        const { data: existingPlayer } = await supabase
+          .from("players")
+          .select("*")
+          .eq("phone", playerPhone)
+          .maybeSingle();
+
+        if (existingPlayer) {
+          // Player exists, just update team_id
+          const { error } = await supabase
+            .from("players")
+            .update({ team_id: teamId })
+            .eq("id", existingPlayer.id);
+
+          if (error) throw error;
+
+          toast({
+            title: "Player Added!",
+            description: `${existingPlayer.name} has been added to the team`,
+          });
+
+          setPlayerName("");
+          setPlayerPhone("");
+          onPlayerAdded();
+          setOpen(false);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Create new player
       const { error } = await supabase.from('players').insert({
         name: validated.name,
+        phone: playerPhone || null,
         team_id: teamId,
       });
 
@@ -49,7 +81,7 @@ const AddPlayerDialog = ({ open, onOpenChange, teamId, onPlayerAdded }: AddPlaye
       setPlayerName("");
       setPlayerPhone("");
       onPlayerAdded();
-      onOpenChange(false);
+      setOpen(false);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -90,11 +122,16 @@ const AddPlayerDialog = ({ open, onOpenChange, teamId, onPlayerAdded }: AddPlaye
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Add Players to Team</DialogTitle>
-        </DialogHeader>
+    <>
+      <Button onClick={() => setOpen(true)} className="gap-2">
+        <Phone className="h-4 w-4" />
+        Add Player
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Players to Team</DialogTitle>
+          </DialogHeader>
 
         <Tabs defaultValue="manual" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
@@ -170,6 +207,7 @@ const AddPlayerDialog = ({ open, onOpenChange, teamId, onPlayerAdded }: AddPlaye
         </Tabs>
       </DialogContent>
     </Dialog>
+    </>
   );
 };
 
