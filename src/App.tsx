@@ -12,6 +12,7 @@ import TournamentDetail from "./pages/TournamentDetail";
 import TeamDetail from "./pages/TeamDetail";
 import Matches from "./pages/Matches";
 import Profile from "./pages/Profile";
+import LiveScoring from "./pages/LiveScoring";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/tournaments/:id" element={<ProtectedRoute><TournamentDetail /></ProtectedRoute>} />
           <Route path="/teams/:id" element={<ProtectedRoute><TeamDetail /></ProtectedRoute>} />
           <Route path="/matches" element={<ProtectedRoute><Matches /></ProtectedRoute>} />
+          <Route path="/matches/:id/score" element={<ProtectedRoute><LiveScoring /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

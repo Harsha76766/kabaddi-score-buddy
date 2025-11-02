@@ -12,6 +12,7 @@ import { z } from "zod";
 const playerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   phone: z.string().optional(),
+  jerseyNumber: z.number().int().positive().optional(),
 });
 
 interface AddPlayerDialogProps {
@@ -25,12 +26,17 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [playerPhone, setPlayerPhone] = useState("");
+  const [jerseyNumber, setJerseyNumber] = useState("");
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      const validated = playerSchema.parse({ name: playerName, phone: playerPhone });
+      const validated = playerSchema.parse({ 
+        name: playerName, 
+        phone: playerPhone,
+        jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : undefined
+      });
       setLoading(true);
 
       // Check if player already exists by phone number
@@ -68,6 +74,7 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
       const { error } = await supabase.from('players').insert({
         name: validated.name,
         phone: playerPhone || null,
+        jersey_number: validated.jerseyNumber || null,
         team_id: teamId,
       });
 
@@ -170,6 +177,18 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
                   placeholder="+91 9876543210"
                   value={playerPhone}
                   onChange={(e) => setPlayerPhone(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jersey-number">Jersey Number (Optional)</Label>
+                <Input
+                  id="jersey-number"
+                  type="number"
+                  placeholder="7"
+                  min="1"
+                  max="99"
+                  value={jerseyNumber}
+                  onChange={(e) => setJerseyNumber(e.target.value)}
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>

@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, MapPin } from "lucide-react";
+import { Calendar, MapPin, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
 import BottomNav from "@/components/BottomNav";
 
@@ -59,39 +61,45 @@ const Matches = () => {
           </Card>
         ) : (
           matches.map((match) => (
-            <Card
-              key={match.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => navigate(`/match/${match.id}/summary`)}
-            >
+            <Card key={match.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">{match.match_name}</CardTitle>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>{format(new Date(match.match_date), 'PPP')}</span>
-                </div>
-                {match.venue && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{match.venue}</span>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg mb-2">{match.match_name}</CardTitle>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>{format(new Date(match.match_date), 'PPP')}</span>
+                    </div>
+                    {match.venue && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{match.venue}</span>
+                      </div>
+                    )}
                   </div>
-                )}
+                  <Badge variant={match.status === 'completed' ? 'default' : match.status === 'live' ? 'destructive' : 'secondary'}>
+                    {match.status}
+                  </Badge>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <span className="font-medium">Status:</span>{" "}
-                    <span className={`capitalize ${
-                      match.status === 'completed' ? 'text-success' : 
-                      match.status === 'live' ? 'text-primary' : 
-                      'text-muted-foreground'
-                    }`}>
-                      {match.status}
-                    </span>
+                  <div className="text-lg font-bold">
+                    Score: <span className="text-primary">{match.team_a_score}</span> - <span className="text-secondary">{match.team_b_score}</span>
                   </div>
-                  <div className="text-sm">
-                    <span className="font-medium">Score:</span> {match.team_a_score} - {match.team_b_score}
-                  </div>
+                  {match.status !== 'completed' && (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/matches/${match.id}/score`);
+                      }}
+                      className="gap-2"
+                    >
+                      <PlayCircle className="h-4 w-4" />
+                      {match.status === 'live' ? 'Continue' : 'Start'} Scoring
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      match_events: {
+        Row: {
+          created_at: string
+          defender_ids: string[] | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          is_all_out: boolean | null
+          is_do_or_die: boolean | null
+          match_id: string
+          points_awarded: number
+          raid_time: number | null
+          raider_id: string | null
+          team_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          defender_ids?: string[] | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          is_all_out?: boolean | null
+          is_do_or_die?: boolean | null
+          match_id: string
+          points_awarded?: number
+          raid_time?: number | null
+          raider_id?: string | null
+          team_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          defender_ids?: string[] | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          is_all_out?: boolean | null
+          is_do_or_die?: boolean | null
+          match_id?: string
+          points_awarded?: number
+          raid_time?: number | null
+          raider_id?: string | null
+          team_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_events_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_events_raider_id_fkey"
+            columns: ["raider_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matches: {
         Row: {
           created_at: string | null
@@ -155,6 +222,7 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          jersey_number: number | null
           matches_played: number | null
           name: string
           phone: string | null
@@ -166,6 +234,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          jersey_number?: number | null
           matches_played?: number | null
           name: string
           phone?: string | null
@@ -177,6 +246,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          jersey_number?: number | null
           matches_played?: number | null
           name?: string
           phone?: string | null
