@@ -385,7 +385,11 @@ const TournamentDetail = () => {
             ) : (
               <div className="space-y-3">
                 {teams.map((team) => (
-                  <Card key={team.id}>
+                  <Card 
+                    key={team.id}
+                    className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => navigate(`/teams/${team.teams.id}`)}
+                  >
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -405,7 +409,8 @@ const TournamentDetail = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedTeamId(team.teams.id);
                                 setAddPlayerOpen(true);
                               }}
