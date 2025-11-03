@@ -9,10 +9,9 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
 const authSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
-  phone: z.string().min(10, "Phone number must be at least 10 digits").optional(),
 });
 
 const Auth = () => {
@@ -21,10 +20,9 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
+    phone: "",
     password: "",
     name: "",
-    phone: "",
   });
 
   useEffect(() => {
@@ -51,11 +49,8 @@ const Auth = () => {
       setLoading(true);
 
       const { data, error } = await supabase.auth.signUp({
-        email: validated.email,
+        phone: validated.phone,
         password: validated.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
       });
 
       if (error) throw error;
@@ -64,9 +59,8 @@ const Auth = () => {
       if (data.user) {
         await supabase.from('profiles').upsert({
           id: data.user.id,
-          email: validated.email,
           name: validated.name || "",
-          phone: validated.phone || "",
+          phone: validated.phone,
         });
       }
 
@@ -92,7 +86,7 @@ const Auth = () => {
       setLoading(true);
 
       const { error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
+        phone: formData.phone,
         password: formData.password,
       });
 
@@ -139,26 +133,14 @@ const Auth = () => {
                 />
               </div>
             )}
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+91 9876543210"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-            )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="phone">Phone Number</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                id="phone"
+                type="tel"
+                placeholder="+91 9876543210"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 required
               />
             </div>

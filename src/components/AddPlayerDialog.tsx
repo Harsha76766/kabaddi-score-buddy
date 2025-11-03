@@ -27,6 +27,31 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
   const [playerName, setPlayerName] = useState("");
   const [playerPhone, setPlayerPhone] = useState("");
   const [jerseyNumber, setJerseyNumber] = useState("");
+  const [isFetchingPlayer, setIsFetchingPlayer] = useState(false);
+
+  const handlePhoneChange = async (value: string) => {
+    setPlayerPhone(value);
+    
+    // Auto-fetch player if phone is 10 digits or more
+    if (value.length >= 10) {
+      setIsFetchingPlayer(true);
+      try {
+        const { data: existingPlayer } = await supabase
+          .from('players')
+          .select('name')
+          .eq('phone', value)
+          .maybeSingle();
+
+        if (existingPlayer) {
+          setPlayerName(existingPlayer.name);
+        }
+      } catch (error) {
+        console.error('Error fetching player:', error);
+      } finally {
+        setIsFetchingPlayer(false);
+      }
+    }
+  };
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,8 +201,10 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
                   type="tel"
                   placeholder="+91 9876543210"
                   value={playerPhone}
-                  onChange={(e) => setPlayerPhone(e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  disabled={isFetchingPlayer}
                 />
+                {isFetchingPlayer && <p className="text-xs text-muted-foreground">Checking for existing player...</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="jersey-number">Jersey Number (Optional)</Label>
