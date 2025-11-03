@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy, UserPlus, Rocket } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, User, Phone, Mail, Trophy, UserPlus, Rocket, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import BottomNav from "@/components/BottomNav";
@@ -452,7 +452,7 @@ const TournamentDetail = () => {
                     <CardContent className="pt-6 space-y-3">
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold">{match.match_name}</h3>
-                        <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
+                        <Badge variant={match.status === 'completed' ? 'default' : match.status === 'live' ? 'destructive' : 'secondary'}>
                           {match.status}
                         </Badge>
                       </div>
@@ -475,6 +475,16 @@ const TournamentDetail = () => {
                           </div>
                         )}
                       </div>
+                      {match.status !== 'completed' && (
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/matches/${match.id}/score`)}
+                          className="w-full gap-2"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          {match.status === 'live' ? 'Continue' : 'Start'} Scoring
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
