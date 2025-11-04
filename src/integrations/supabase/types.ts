@@ -505,7 +505,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      insert_match_event: {
+        Args: {
+          p_defender_ids: string[]
+          p_event_data?: Json
+          p_event_type: string
+          p_is_all_out: boolean
+          p_is_do_or_die: boolean
+          p_match_id: string
+          p_points_awarded: number
+          p_raid_time: number
+          p_raider_id: string
+          p_team_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

@@ -175,28 +175,32 @@ const LiveScoring = () => {
     if (!raidingTeam) return;
 
     try {
-      const eventData = {
-        match_id: match.id,
-        event_type: eventType,
-        raider_id: selectedRaider,
-        team_id: raidingTeam.id,
-        points_awarded: points,
-        raid_time: raidTimer,
-        is_do_or_die: isDoOrDie,
-        is_all_out: isAllOut,
-        event_data: {
-          defenders: selectedDefenders,
+      // Use the secure server-side validated function
+      const { data: eventId, error } = await supabase.rpc('insert_match_event', {
+        p_match_id: match.id,
+        p_event_type: eventType,
+        p_raider_id: selectedRaider,
+        p_defender_ids: selectedDefenders,
+        p_team_id: raidingTeam.id,
+        p_points_awarded: points,
+        p_raid_time: raidTimer,
+        p_is_do_or_die: isDoOrDie,
+        p_is_all_out: isAllOut,
+        p_event_data: {
           half: halfNumber,
         }
-      };
-
-      const { data, error } = await supabase
-        .from("match_events")
-        .insert(eventData)
-        .select()
-        .single();
+      });
 
       if (error) throw error;
+
+      // Fetch the newly created event
+      const { data, error: fetchError } = await supabase
+        .from("match_events")
+        .select()
+        .eq("id", eventId)
+        .single();
+
+      if (fetchError) throw fetchError;
 
       const newScore = activeTeam === "A" 
         ? match.team_a_score + points 
