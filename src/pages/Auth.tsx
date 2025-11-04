@@ -51,6 +51,11 @@ const Auth = () => {
       const { data, error } = await supabase.auth.signUp({
         phone: validated.phone,
         password: validated.password,
+        options: {
+          data: {
+            name: validated.name || "",
+          },
+        },
       });
 
       if (error) throw error;
