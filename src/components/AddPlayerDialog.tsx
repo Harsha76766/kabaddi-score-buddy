@@ -10,8 +10,7 @@ import { Phone, Link as LinkIcon, MessageCircle, QrCode } from "lucide-react";
 import { z } from "zod";
 
 const playerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().optional(),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
   jerseyNumber: z.number().int().positive().optional(),
 });
 
@@ -31,6 +30,7 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
 
   const handlePhoneChange = async (value: string) => {
     setPlayerPhone(value);
+    setPlayerName(""); // Clear name when phone changes
     
     // Auto-fetch player if phone is 10 digits or more
     if (value.length >= 10) {
@@ -38,12 +38,18 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
       try {
         const { data: existingPlayer } = await supabase
           .from('players')
-          .select('name')
+          .select('name, id')
           .eq('phone', value)
           .maybeSingle();
 
         if (existingPlayer) {
           setPlayerName(existingPlayer.name);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Player not registered",
+            description: "This phone number is not registered in the system",
+          });
         }
       } catch (error) {
         console.error('Error fetching player:', error);
@@ -56,62 +62,60 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!playerName) {
+      toast({
+        variant: "destructive",
+        title: "Player not found",
+        description: "Please enter a registered phone number",
+      });
+      return;
+    }
+    
     try {
       const validated = playerSchema.parse({ 
-        name: playerName, 
         phone: playerPhone,
         jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : undefined
       });
       setLoading(true);
 
-      // Check if player already exists by phone number
-      if (playerPhone) {
-        const { data: existingPlayer } = await supabase
-          .from("players")
-          .select("*")
-          .eq("phone", playerPhone)
-          .maybeSingle();
+      // Check if player exists by phone number
+      const { data: existingPlayer } = await supabase
+        .from("players")
+        .select("*")
+        .eq("phone", playerPhone)
+        .maybeSingle();
 
-        if (existingPlayer) {
-          // Player exists, just update team_id
-          const { error } = await supabase
-            .from("players")
-            .update({ team_id: teamId })
-            .eq("id", existingPlayer.id);
-
-          if (error) throw error;
-
-          toast({
-            title: "Player Added!",
-            description: `${existingPlayer.name} has been added to the team`,
-          });
-
-          setPlayerName("");
-          setPlayerPhone("");
-          onPlayerAdded();
-          setOpen(false);
-          setLoading(false);
-          return;
-        }
+      if (!existingPlayer) {
+        toast({
+          variant: "destructive",
+          title: "Player not registered",
+          description: "Only registered players can be added to teams",
+        });
+        setLoading(false);
+        return;
       }
 
-      // Create new player
-      const { error } = await supabase.from('players').insert({
-        name: validated.name,
-        phone: playerPhone || null,
-        jersey_number: validated.jerseyNumber || null,
-        team_id: teamId,
-      });
+      // Player exists, update team_id and jersey number
+      const updateData: any = { team_id: teamId };
+      if (validated.jerseyNumber) {
+        updateData.jersey_number = validated.jerseyNumber;
+      }
+
+      const { error } = await supabase
+        .from("players")
+        .update(updateData)
+        .eq("id", existingPlayer.id);
 
       if (error) throw error;
 
       toast({
         title: "Player Added!",
-        description: `${validated.name} has been added to the team`,
+        description: `${existingPlayer.name} has been added to the team`,
       });
 
       setPlayerName("");
       setPlayerPhone("");
+      setJerseyNumber("");
       onPlayerAdded();
       setOpen(false);
     } catch (error: any) {
@@ -182,20 +186,10 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
           </TabsList>
 
           <TabsContent value="manual" className="space-y-4">
-            <p className="text-sm text-muted-foreground">Add player by entering their details</p>
+            <p className="text-sm text-muted-foreground">Add registered player by phone number</p>
             <form onSubmit={handleAddPlayer} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="player-name">Player Name</Label>
-                <Input
-                  id="player-name"
-                  placeholder="Enter player name"
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="player-phone">Phone Number (Optional)</Label>
+                <Label htmlFor="player-phone">Phone Number</Label>
                 <Input
                   id="player-phone"
                   type="tel"
@@ -203,9 +197,16 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
                   value={playerPhone}
                   onChange={(e) => handlePhoneChange(e.target.value)}
                   disabled={isFetchingPlayer}
+                  required
                 />
-                {isFetchingPlayer && <p className="text-xs text-muted-foreground">Checking for existing player...</p>}
+                {isFetchingPlayer && <p className="text-xs text-muted-foreground">Checking for registered player...</p>}
               </div>
+              {playerName && (
+                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <p className="text-sm font-medium">Player Found:</p>
+                  <p className="text-lg font-bold text-primary">{playerName}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="jersey-number">Jersey Number (Optional)</Label>
                 <Input

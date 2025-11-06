@@ -13,6 +13,7 @@ import BottomNav from "@/components/BottomNav";
 import { AddTeamDialog } from "@/components/AddTeamDialog";
 import AddPlayerDialog from "@/components/AddPlayerDialog";
 import { CreateMatchDialog } from "@/components/CreateMatchDialog";
+import { MatchStartDialog } from "@/components/MatchStartDialog";
 
 interface Tournament {
   id: string;
@@ -51,8 +52,10 @@ interface Match {
   status: string;
   team_a_score: number;
   team_b_score: number;
-  team_a: { name: string } | null;
-  team_b: { name: string } | null;
+  team_a_id: string;
+  team_b_id: string;
+  team_a: { name: string; id: string } | null;
+  team_b: { name: string; id: string } | null;
 }
 
 interface PlayerStats {
@@ -80,6 +83,18 @@ const TournamentDetail = () => {
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [matchStartDialog, setMatchStartDialog] = useState<{
+    open: boolean;
+    matchId: string;
+    teamAId: string;
+    teamBId: string;
+    teamAName: string;
+    teamBName: string;
+  } | null>(null);
+  const [playersForMatch, setPlayersForMatch] = useState<{
+    teamA: any[];
+    teamB: any[];
+  }>({ teamA: [], teamB: [] });
 
   useEffect(() => {
     if (id) fetchTournamentData();
@@ -150,8 +165,10 @@ const TournamentDetail = () => {
           status,
           team_a_score,
           team_b_score,
-          team_a:teams!matches_team_a_id_fkey (name),
-          team_b:teams!matches_team_b_id_fkey (name)
+          team_a_id,
+          team_b_id,
+          team_a:teams!matches_team_a_id_fkey (name, id),
+          team_b:teams!matches_team_b_id_fkey (name, id)
         `)
         .eq('tournament_id', id)
         .order('match_date', { ascending: false });
@@ -322,46 +339,6 @@ const TournamentDetail = () => {
       </div>
 
       <div className="p-4 -mt-4 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Tournament Info</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{tournament.city} • {tournament.ground}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span>
-                {format(new Date(tournament.start_date), 'MMM d, yyyy')} - {format(new Date(tournament.end_date), 'MMM d, yyyy')}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Organizer Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 text-sm">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span>{tournament.organizer_name}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span>{tournament.organizer_phone}</span>
-            </div>
-            {tournament.organizer_email && (
-              <div className="flex items-center gap-3 text-sm">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{tournament.organizer_email}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <Tabs defaultValue="teams" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="teams">Teams</TabsTrigger>
@@ -478,7 +455,31 @@ const TournamentDetail = () => {
                       {match.status !== 'completed' && (
                         <Button
                           size="sm"
-                          onClick={() => navigate(`/matches/${match.id}/score`)}
+                          onClick={async () => {
+                            if (match.status === 'live') {
+                              navigate(`/matches/${match.id}/score`);
+                            } else {
+                              // Fetch players for both teams
+                              const [playersAData, playersBData] = await Promise.all([
+                                supabase.from("players").select("*").eq("team_id", match.team_a_id),
+                                supabase.from("players").select("*").eq("team_id", match.team_b_id),
+                              ]);
+                              
+                              setPlayersForMatch({
+                                teamA: playersAData.data || [],
+                                teamB: playersBData.data || [],
+                              });
+                              
+                              setMatchStartDialog({
+                                open: true,
+                                matchId: match.id,
+                                teamAId: match.team_a_id,
+                                teamBId: match.team_b_id,
+                                teamAName: match.team_a?.name || '',
+                                teamBName: match.team_b?.name || '',
+                              });
+                            }
+                          }}
                           className="w-full gap-2"
                         >
                           <PlayCircle className="h-4 w-4" />
@@ -538,6 +539,46 @@ const TournamentDetail = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Tournament Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{tournament.city} • {tournament.ground}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span>
+                {format(new Date(tournament.start_date), 'MMM d, yyyy')} - {format(new Date(tournament.end_date), 'MMM d, yyyy')}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Organizer Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span>{tournament.organizer_name}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <span>{tournament.organizer_phone}</span>
+            </div>
+            {tournament.organizer_email && (
+              <div className="flex items-center gap-3 text-sm">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span>{tournament.organizer_email}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {selectedTeamId && (
@@ -549,6 +590,22 @@ const TournamentDetail = () => {
               description: "Player added to team successfully",
             });
             fetchTournamentData();
+          }}
+        />
+      )}
+
+      {matchStartDialog && (
+        <MatchStartDialog
+          matchId={matchStartDialog.matchId}
+          teamAId={matchStartDialog.teamAId}
+          teamBId={matchStartDialog.teamBId}
+          teamAName={matchStartDialog.teamAName}
+          teamBName={matchStartDialog.teamBName}
+          playersA={playersForMatch.teamA}
+          playersB={playersForMatch.teamB}
+          open={matchStartDialog.open}
+          onOpenChange={(open) => {
+            if (!open) setMatchStartDialog(null);
           }}
         />
       )}

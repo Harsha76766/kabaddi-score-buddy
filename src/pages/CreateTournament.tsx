@@ -43,7 +43,7 @@ const CreateTournament = () => {
     name: "",
     city: "",
     ground: "",
-    organizer_email: "",
+    organizer_phone: "",
     start_date: "",
     end_date: "",
     category: "Open",
@@ -81,7 +81,7 @@ const CreateTournament = () => {
       // Get user profile for organizer details
       const { data: profile } = await supabase
         .from('profiles')
-        .select('name, phone, email')
+        .select('name, phone')
         .eq('id', user.id)
         .single();
 
@@ -129,8 +129,8 @@ const CreateTournament = () => {
         ground: validated.ground,
         organizer_id: user.id,
         organizer_name: profile?.name || 'Unknown',
-        organizer_phone: profile?.phone || '',
-        organizer_email: formData.organizer_email || profile?.email || '',
+        organizer_phone: formData.organizer_phone || profile?.phone || '',
+        organizer_email: null,
         start_date: validated.start_date,
         end_date: validated.end_date,
         category: validated.category,
@@ -275,13 +275,14 @@ const CreateTournament = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="organizer_email">Organizer Email (Optional)</Label>
+                <Label htmlFor="organizer_phone">Organizer Phone Number</Label>
                 <Input
-                  id="organizer_email"
-                  type="email"
-                  placeholder="organizer@example.com"
-                  value={formData.organizer_email}
-                  onChange={(e) => setFormData({ ...formData, organizer_email: e.target.value })}
+                  id="organizer_phone"
+                  type="tel"
+                  placeholder="+91 9876543210"
+                  value={formData.organizer_phone}
+                  onChange={(e) => setFormData({ ...formData, organizer_phone: e.target.value })}
+                  required
                 />
               </div>
 
