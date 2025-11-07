@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Link2, QrCode, Users } from "lucide-react";
+import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 
 interface AddTeamDialogProps {
   tournamentId: string;
@@ -244,9 +245,18 @@ export const AddTeamDialog = ({ tournamentId, onTeamAdded }: AddTeamDialogProps)
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <QrCode className="h-32 w-32 text-muted-foreground" />
-              <p className="text-muted-foreground">QR Code functionality coming soon</p>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Generate a QR code for teams to scan and join the tournament
+              </p>
+              {inviteLink ? (
+                <QRCodeDisplay value={inviteLink} />
+              ) : (
+                <Button onClick={handleGenerateInviteLink} className="w-full gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Generate QR Code
+                </Button>
+              )}
             </div>
           </TabsContent>
         </Tabs>

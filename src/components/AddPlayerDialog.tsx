@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, Link as LinkIcon, MessageCircle, QrCode } from "lucide-react";
+import { Phone, Link as LinkIcon, MessageCircle, QrCode, Camera } from "lucide-react";
 import { z } from "zod";
+import { QRScanner } from "@/components/QRScanner";
+import { QRCodeDisplay } from "@/components/QRCodeDisplay";
 
 const playerSchema = z.object({
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
@@ -27,6 +29,8 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
   const [playerPhone, setPlayerPhone] = useState("");
   const [jerseyNumber, setJerseyNumber] = useState("");
   const [isFetchingPlayer, setIsFetchingPlayer] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [qrInviteLink, setQrInviteLink] = useState("");
 
   const handlePhoneChange = async (value: string) => {
     setPlayerPhone(value);
@@ -157,6 +161,29 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
     window.open(whatsappUrl, '_blank');
   };
 
+  const handleQRScan = async (data: string) => {
+    try {
+      // Extract phone number from QR code data
+      // QR code should contain just the phone number
+      const phone = data.trim();
+      setShowScanner(false);
+      await handlePhoneChange(phone);
+      setPlayerPhone(phone);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Invalid QR Code",
+        description: "Please scan a valid player registration QR code",
+      });
+    }
+  };
+
+  const generateQRInvite = () => {
+    const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const inviteLink = `${window.location.origin}/join-team?code=${inviteCode}&team=${teamId}`;
+    setQrInviteLink(inviteLink);
+  };
+
   return (
     <>
       <Button onClick={() => setOpen(true)} className="gap-2">
@@ -242,14 +269,55 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
-            <div className="flex flex-col items-center justify-center py-8 space-y-4">
-              <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center">
-                <QrCode className="h-24 w-24 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                QR Code feature coming soon!<br />Players will be able to scan to join instantly.
-              </p>
-            </div>
+            <Tabs defaultValue="scan" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="scan">
+                  <Camera className="h-4 w-4 mr-2" />
+                  Scan QR
+                </TabsTrigger>
+                <TabsTrigger value="generate">
+                  <QrCode className="h-4 w-4 mr-2" />
+                  Generate QR
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="scan" className="space-y-4 pt-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Scan a player's registration QR code to add them instantly
+                </p>
+                {showScanner ? (
+                  <QRScanner 
+                    onScan={handleQRScan}
+                    onError={(error) => {
+                      toast({
+                        variant: "destructive",
+                        title: "Scanner Error",
+                        description: error,
+                      });
+                    }}
+                  />
+                ) : (
+                  <Button onClick={() => setShowScanner(true)} className="w-full gap-2">
+                    <Camera className="h-4 w-4" />
+                    Open Camera Scanner
+                  </Button>
+                )}
+              </TabsContent>
+
+              <TabsContent value="generate" className="space-y-4 pt-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Generate a QR code for players to scan and join your team
+                </p>
+                {qrInviteLink ? (
+                  <QRCodeDisplay value={qrInviteLink} />
+                ) : (
+                  <Button onClick={generateQRInvite} className="w-full gap-2">
+                    <QrCode className="h-4 w-4" />
+                    Generate Team Invite QR
+                  </Button>
+                )}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </DialogContent>
