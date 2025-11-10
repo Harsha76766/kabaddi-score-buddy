@@ -230,6 +230,7 @@ export type Database = {
           total_bonus_points: number | null
           total_raid_points: number | null
           total_tackle_points: number | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -242,6 +243,7 @@ export type Database = {
           total_bonus_points?: number | null
           total_raid_points?: number | null
           total_tackle_points?: number | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           total_bonus_points?: number | null
           total_raid_points?: number | null
           total_tackle_points?: number | null
+          user_id?: string | null
         }
         Relationships: [
           {

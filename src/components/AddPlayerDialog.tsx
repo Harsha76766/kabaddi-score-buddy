@@ -40,19 +40,20 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
     if (value.length >= 10) {
       setIsFetchingPlayer(true);
       try {
-        const { data: existingPlayer } = await supabase
-          .from('players')
-          .select('name, id')
+        // Check if user exists in profiles (registered users)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, name, phone')
           .eq('phone', value)
           .maybeSingle();
 
-        if (existingPlayer) {
-          setPlayerName(existingPlayer.name);
+        if (profile) {
+          setPlayerName(profile.name);
         } else {
           toast({
             variant: "destructive",
             title: "Player not registered",
-            description: "This phone number is not registered in the system",
+            description: "This phone number is not registered. Player must sign up first.",
           });
         }
       } catch (error) {
@@ -82,39 +83,65 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
       });
       setLoading(true);
 
-      // Check if player exists by phone number
-      const { data: existingPlayer } = await supabase
-        .from("players")
-        .select("*")
+      // Check if user exists in profiles
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, name, phone")
         .eq("phone", playerPhone)
         .maybeSingle();
 
-      if (!existingPlayer) {
+      if (!profile) {
         toast({
           variant: "destructive",
           title: "Player not registered",
-          description: "Only registered players can be added to teams",
+          description: "Only registered users can be added to teams. Player must sign up first.",
         });
         setLoading(false);
         return;
       }
 
-      // Player exists, update team_id and jersey number
-      const updateData: any = { team_id: teamId };
-      if (validated.jerseyNumber) {
-        updateData.jersey_number = validated.jerseyNumber;
-      }
-
-      const { error } = await supabase
+      // Check if player record already exists
+      const { data: existingPlayer } = await supabase
         .from("players")
-        .update(updateData)
-        .eq("id", existingPlayer.id);
+        .select("*")
+        .eq("user_id", profile.id)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (existingPlayer) {
+        // Update existing player record
+        const updateData: any = { team_id: teamId };
+        if (validated.jerseyNumber) {
+          updateData.jersey_number = validated.jerseyNumber;
+        }
+
+        const { error } = await supabase
+          .from("players")
+          .update(updateData)
+          .eq("id", existingPlayer.id);
+
+        if (error) throw error;
+      } else {
+        // Create new player record
+        const insertData: any = {
+          user_id: profile.id,
+          name: profile.name,
+          phone: profile.phone,
+          team_id: teamId,
+        };
+        if (validated.jerseyNumber) {
+          insertData.jersey_number = validated.jerseyNumber;
+        }
+
+        const { error } = await supabase
+          .from("players")
+          .insert(insertData);
+
+        if (error) throw error;
+      }
 
       toast({
         title: "Player Added!",
-        description: `${existingPlayer.name} has been added to the team`,
+        description: `${profile.name} has been added to the team`,
       });
 
       setPlayerName("");

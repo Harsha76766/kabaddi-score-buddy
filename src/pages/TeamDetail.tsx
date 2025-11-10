@@ -6,7 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Users, Trophy, Target } from "lucide-react";
+import { ArrowLeft, Users, Trophy, Target, Pencil, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AddPlayerDialog } from "@/components/AddPlayerDialog";
 
 const TeamDetail = () => {
@@ -22,6 +41,11 @@ const TeamDetail = () => {
     points: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [editingPlayer, setEditingPlayer] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editJersey, setEditJersey] = useState("");
+  const [deletePlayerId, setDeletePlayerId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchTeamDetails();
@@ -76,6 +100,77 @@ const TeamDetail = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditPlayer = (player: any) => {
+    setEditingPlayer(player);
+    setEditName(player.name);
+    setEditJersey(player.jersey_number?.toString() || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPlayer) return;
+    
+    setSaving(true);
+    try {
+      const updateData: any = { name: editName };
+      if (editJersey) {
+        updateData.jersey_number = parseInt(editJersey);
+      }
+
+      const { error } = await supabase
+        .from("players")
+        .update(updateData)
+        .eq("id", editingPlayer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Player Updated!",
+        description: "Player information has been updated successfully",
+      });
+
+      setEditingPlayer(null);
+      fetchTeamDetails();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update player",
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePlayer = async () => {
+    if (!deletePlayerId) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("players")
+        .update({ team_id: null, jersey_number: null })
+        .eq("id", deletePlayerId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Player Removed!",
+        description: "Player has been removed from the team",
+      });
+
+      setDeletePlayerId(null);
+      fetchTeamDetails();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to remove player",
+        description: error.message,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -188,21 +283,44 @@ const TeamDetail = () => {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium">{player.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{player.name}</p>
+                          {player.jersey_number && (
+                            <Badge variant="secondary" className="text-xs">
+                              #{player.jersey_number}
+                            </Badge>
+                          )}
+                        </div>
                         {player.phone && (
                           <p className="text-sm text-muted-foreground">{player.phone}</p>
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline">
-                        {player.matches_played || 0} matches
-                      </Badge>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {(player.total_raid_points || 0) + 
-                         (player.total_tackle_points || 0) + 
-                         (player.total_bonus_points || 0)} pts
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right mr-2">
+                        <Badge variant="outline">
+                          {player.matches_played || 0} matches
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {(player.total_raid_points || 0) + 
+                           (player.total_tackle_points || 0) + 
+                           (player.total_bonus_points || 0)} pts
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditPlayer(player)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeletePlayerId(player.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -211,6 +329,62 @@ const TeamDetail = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Player Dialog */}
+      <Dialog open={!!editingPlayer} onOpenChange={() => setEditingPlayer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Player</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Player Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-jersey">Jersey Number</Label>
+              <Input
+                id="edit-jersey"
+                type="number"
+                min="1"
+                max="99"
+                value={editJersey}
+                onChange={(e) => setEditJersey(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPlayer(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletePlayerId} onOpenChange={() => setDeletePlayerId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Player from Team?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the player from this team. The player will still exist in the system and can be added to teams again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePlayer} disabled={saving}>
+              {saving ? "Removing..." : "Remove Player"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
