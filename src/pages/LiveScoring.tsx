@@ -3,12 +3,23 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, Play, Pause, RotateCcw, Clock, 
-  Undo2, Redo2, Flag, Users
+  Undo2, Redo2, Flag, Settings, ChevronDown, StopCircle
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Player {
   id: string;
@@ -66,6 +77,9 @@ const LiveScoring = () => {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [undoneEvents, setUndoneEvents] = useState<MatchEvent[]>([]);
   const [halfNumber, setHalfNumber] = useState(1);
+  const [raidCount, setRaidCount] = useState(0);
+  const [showPlayerSelectDialog, setShowPlayerSelectDialog] = useState(false);
+  const [showBonusDropdown, setShowBonusDropdown] = useState(false);
   
   const [teamAStats, setTeamAStats] = useState({
     raid: 0, tackle: 0, bonus: 0, allOut: 0
@@ -230,6 +244,10 @@ const LiveScoring = () => {
         setConsecutiveZeroRaids(0);
       }
 
+      if (eventType === "raid" || eventType === "tackle") {
+        setRaidCount(prev => prev + 1);
+      }
+
       resetRaid();
       setUndoneEvents([]);
 
@@ -291,11 +309,95 @@ const LiveScoring = () => {
     }
   };
 
+  const handleRedo = async () => {
+    if (undoneEvents.length === 0 || !match) return;
+    
+    const eventToRedo = undoneEvents[undoneEvents.length - 1];
+    
+    try {
+      const { data, error } = await supabase
+        .from("match_events")
+        .insert({
+          match_id: match.id,
+          event_type: eventToRedo.event_type,
+          raider_id: eventToRedo.raider_id,
+          team_id: eventToRedo.team_id,
+          points_awarded: eventToRedo.points_awarded,
+          raid_time: eventToRedo.raid_time,
+          is_do_or_die: eventToRedo.is_do_or_die,
+          is_all_out: eventToRedo.is_all_out,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newScore = eventToRedo.team_id === match.team_a_id
+        ? match.team_a_score + eventToRedo.points_awarded
+        : match.team_b_score + eventToRedo.points_awarded;
+
+      await supabase
+        .from("matches")
+        .update(
+          eventToRedo.team_id === match.team_a_id
+            ? { team_a_score: newScore }
+            : { team_b_score: newScore }
+        )
+        .eq("id", match.id);
+
+      setMatch(prev => prev ? {
+        ...prev,
+        team_a_score: eventToRedo.team_id === match.team_a_id ? newScore : prev.team_a_score,
+        team_b_score: eventToRedo.team_id === match.team_b_id ? newScore : prev.team_b_score,
+      } : null);
+
+      const newEvents = [...events, data];
+      setEvents(newEvents);
+      setUndoneEvents(undoneEvents.slice(0, -1));
+      recalculateStats(newEvents);
+
+      toast({ title: "Action redone" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error redoing action",
+        description: error.message,
+      });
+    }
+  };
+
   const resetRaid = () => {
     setRaidTimer(0);
     setIsRaidRunning(false);
     setSelectedRaider(null);
     setSelectedDefenders([]);
+  };
+
+  const handleStopRaid = () => {
+    setIsRaidRunning(false);
+    setRaidTimer(0);
+    toast({ title: "Raid stopped" });
+  };
+
+  const handleNextRaid = () => {
+    setActiveTeam(prev => prev === "A" ? "B" : "A");
+    resetRaid();
+    setShowPlayerSelectDialog(true);
+  };
+
+  const handlePlayerSelect = (playerId: string) => {
+    setSelectedRaider(playerId);
+    setShowPlayerSelectDialog(false);
+    setRaidTimer(30);
+    setIsRaidRunning(true);
+  };
+
+  const handleNextHalf = () => {
+    setHalfNumber(prev => prev + 1);
+    setMatchTimer(0);
+    setRaidCount(0);
+    resetRaid();
+    toast({ title: `Starting ${halfNumber + 1}${halfNumber === 1 ? 'nd' : 'rd'} Half` });
   };
 
   const togglePlayerOut = (playerId: string, team: "A" | "B") => {
@@ -344,328 +446,433 @@ const LiveScoring = () => {
   const outPlayers = activeTeam === "A" ? outPlayersB : outPlayersA;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white pb-6">
-      {/* Top Bar */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 shadow-lg sticky top-0 z-50">
-        <div className="flex items-center justify-between mb-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(-1)}
-            className="text-white hover:bg-white/10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-orange-500/20 text-orange-400 border-orange-500">
-              {halfNumber === 1 ? "1st Half" : "2nd Half"}
-            </Badge>
-            <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-lg">
-              <Clock className="h-4 w-4" />
-              <span className="font-mono text-lg">{formatTime(matchTimer)}</span>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-x-hidden">
+      {/* Top Header Bar - Fixed */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 px-6 py-3 shadow-2xl sticky top-0 z-50">
+        <div className="flex items-center justify-between max-w-[1920px] mx-auto">
+          {/* Left Section */}
+          <div className="flex items-center gap-4">
             <Button
-              size="sm"
-              variant={isMatchRunning ? "destructive" : "default"}
-              onClick={() => setIsMatchRunning(!isMatchRunning)}
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="text-white hover:bg-white/10"
             >
-              {isMatchRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:bg-white/10"
+            >
+              <Settings className="h-5 w-5" />
             </Button>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/matches`)}
-            className="gap-2"
-          >
-            <Flag className="h-4 w-4" />
-            End Match
-          </Button>
-        </div>
+          {/* Center Section */}
+          <div className="flex items-center gap-6">
+            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500 text-sm px-4 py-1">
+              {halfNumber === 1 ? "1st Half" : halfNumber === 2 ? "2nd Half" : `${halfNumber}rd Half`}
+            </Badge>
+            
+            <div className="flex items-center gap-3 bg-slate-800/50 backdrop-blur px-6 py-2 rounded-lg border border-slate-700">
+              <Clock className="h-5 w-5 text-yellow-400" />
+              <span className="font-mono text-2xl font-bold tracking-wider text-yellow-400">
+                {formatTime(matchTimer)}
+              </span>
+              <Button
+                size="sm"
+                variant={isMatchRunning ? "destructive" : "default"}
+                onClick={() => setIsMatchRunning(!isMatchRunning)}
+                className="ml-2"
+              >
+                {isMatchRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              </Button>
+            </div>
 
-        {/* Teams Score */}
-        <div className="grid grid-cols-3 gap-4 items-center">
-          <div className="text-center">
-            <div className="text-sm text-slate-400 mb-1">{teamA.name}</div>
-            <div className="text-4xl font-bold text-orange-400">{match.team_a_score}</div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleNextHalf}
+              className="border-slate-600 hover:bg-slate-800"
+            >
+              Next Half
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate(`/matches`)}
+              className="gap-2 border-red-600 text-red-400 hover:bg-red-950"
+            >
+              <Flag className="h-4 w-4" />
+              End Match
+            </Button>
           </div>
-          <div className="text-center">
-            <div className="text-xs text-slate-500">VS</div>
+
+          {/* Right Section */}
+          <Badge className={`${isMatchRunning ? 'bg-green-500/20 text-green-400 border-green-500 animate-pulse' : 'bg-slate-700/20 text-slate-400 border-slate-600'} text-sm px-4 py-1`}>
+            {isMatchRunning ? "● LIVE" : "PAUSED"}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Scoreboard Section */}
+      <div className="px-6 py-6 border-b border-slate-800">
+        <div className="max-w-[1920px] mx-auto grid grid-cols-5 gap-8 items-center">
+          {/* Team A */}
+          <div className="col-span-2 text-right">
+            <div className="text-xl font-bold text-red-400 mb-2">{teamA.name}</div>
+            <div className="text-7xl font-mono font-bold text-red-500 tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]">
+              {match.team_a_score.toString().padStart(2, '0')}
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-sm text-slate-400 mb-1">{teamB.name}</div>
-            <div className="text-4xl font-bold text-blue-400">{match.team_b_score}</div>
+
+          {/* VS */}
+          <div className="col-span-1 text-center">
+            <div className="text-4xl font-bold text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]">
+              VS
+            </div>
+            <div className="text-xs text-slate-500 mt-2">
+              Raid #{raidCount}
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              {activeTeam === "A" ? teamA.name : teamB.name} Raid
+            </div>
+          </div>
+
+          {/* Team B */}
+          <div className="col-span-2 text-left">
+            <div className="text-xl font-bold text-blue-400 mb-2">{teamB.name}</div>
+            <div className="text-7xl font-mono font-bold text-blue-500 tracking-wider drop-shadow-[0_0_20px_rgba(59,130,246,0.5)]">
+              {match.team_b_score.toString().padStart(2, '0')}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Active Team Switcher */}
-        <Card className="p-3 bg-slate-900 border-slate-700">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">Raiding Team:</span>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={activeTeam === "A" ? "default" : "outline"}
-                onClick={() => setActiveTeam("A")}
-                className={activeTeam === "A" ? "bg-orange-500 hover:bg-orange-600" : ""}
-              >
-                {teamA.name}
-              </Button>
-              <Button
-                size="sm"
-                variant={activeTeam === "B" ? "default" : "outline"}
-                onClick={() => setActiveTeam("B")}
-                className={activeTeam === "B" ? "bg-blue-500 hover:bg-blue-600" : ""}
-              >
-                {teamB.name}
-              </Button>
+      {/* Players & Timer Section */}
+      <div className="px-6 py-6 border-b border-slate-800 bg-slate-900/30">
+        <div className="max-w-[1920px] mx-auto grid grid-cols-12 gap-6 items-center">
+          {/* Team A Players */}
+          <div className="col-span-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1 w-12 bg-red-500 rounded"></div>
+              <span className="text-sm font-semibold text-red-400">Team A Players</span>
+            </div>
+            <div className="grid grid-cols-8 gap-2">
+              {playersA.slice(0, 8).map((player) => {
+                const isOut = outPlayersA.includes(player.id);
+                const isActive = selectedRaider === player.id && activeTeam === "A";
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => activeTeam === "A" && setSelectedRaider(player.id === selectedRaider ? null : player.id)}
+                    className={`
+                      aspect-square rounded-lg border-2 flex flex-col items-center justify-center
+                      transition-all duration-300
+                      ${isActive
+                        ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-500/50 scale-110 ring-4 ring-red-500/30 animate-pulse'
+                        : isOut
+                        ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40'
+                        : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-400 hover:scale-105'
+                      }
+                    `}
+                  >
+                    <div className="text-lg font-bold">
+                      {player.jersey_number || '?'}
+                    </div>
+                    <div className="text-[7px] truncate w-full text-center px-1">
+                      {player.name.split(' ')[0]}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </Card>
 
-        {/* Do or Die Warning */}
-        {isDoOrDieActive && (
-          <Card className="p-3 bg-orange-500/20 border-orange-500 animate-pulse">
-            <div className="text-center font-bold text-orange-400">
-              ⚠️ DO OR DIE RAID ⚠️
-            </div>
-          </Card>
-        )}
-
-        {/* Raiding Players Selection */}
-        <Card className="p-4 bg-slate-900 border-slate-700">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-orange-400" />
-            <h3 className="font-semibold">Select Raider</h3>
-          </div>
-          <div className="grid grid-cols-7 gap-2">
-            {raidingPlayers.map((player) => (
-              <button
-                key={player.id}
-                onClick={() => setSelectedRaider(player.id === selectedRaider ? null : player.id)}
-                className={`
-                  aspect-square rounded-lg border-2 flex flex-col items-center justify-center
-                  transition-all hover:scale-105
-                  ${selectedRaider === player.id 
-                    ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-500/50' 
-                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-orange-400'
-                  }
-                  ${outPlayers.includes(player.id) ? 'opacity-40' : ''}
-                `}
-              >
-                <div className="text-xl font-bold">
-                  {player.jersey_number || '?'}
+          {/* Raid Timer (Center) */}
+          <div className="col-span-2">
+            <div className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-6 border-2 border-yellow-500/30 shadow-2xl">
+              <div className="text-center mb-3">
+                <div className="text-xs text-yellow-400 mb-2">RAID TIMER</div>
+                <div className={`font-mono text-5xl font-bold tracking-wider ${raidTimer > 20 ? 'text-red-500 animate-pulse' : 'text-yellow-400'} drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]`}>
+                  {(30 - raidTimer).toString().padStart(2, '0')}
                 </div>
-                <div className="text-[8px] truncate w-full text-center px-1">
-                  {player.name.split(' ')[0]}
-                </div>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {/* Defending Players Selection */}
-        <Card className="p-4 bg-slate-900 border-slate-700">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-blue-400" />
-            <h3 className="font-semibold">Select Defenders (Optional)</h3>
-          </div>
-          <div className="grid grid-cols-7 gap-2">
-            {defendingPlayers.map((player) => (
-              <button
-                key={player.id}
-                onClick={() => {
-                  if (selectedDefenders.includes(player.id)) {
-                    setSelectedDefenders(prev => prev.filter(id => id !== player.id));
-                  } else {
-                    setSelectedDefenders(prev => [...prev, player.id]);
-                  }
-                }}
-                className={`
-                  aspect-square rounded-lg border-2 flex flex-col items-center justify-center
-                  transition-all hover:scale-105
-                  ${selectedDefenders.includes(player.id)
-                    ? 'bg-blue-500 border-blue-400 text-white shadow-lg shadow-blue-500/50'
-                    : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-blue-400'
-                  }
-                  ${outPlayers.includes(player.id) ? 'opacity-40' : ''}
-                `}
-              >
-                <div className="text-xl font-bold">
-                  {player.jersey_number || '?'}
-                </div>
-                <div className="text-[8px] truncate w-full text-center px-1">
-                  {player.name.split(' ')[0]}
-                </div>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {/* Raid Timer */}
-        <Card className="p-4 bg-slate-900 border-slate-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-yellow-400" />
-              <span className="font-mono text-2xl font-bold text-yellow-400">
-                {formatTime(raidTimer)}
-              </span>
-              <span className="text-xs text-slate-400">Raid Timer</span>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={isRaidRunning ? "destructive" : "default"}
-                onClick={() => setIsRaidRunning(!isRaidRunning)}
-                className="bg-yellow-500 hover:bg-yellow-600"
-              >
-                {isRaidRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setRaidTimer(0)}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
+              </div>
+              <div className="flex gap-2 justify-center mt-4">
+                <Button
+                  size="sm"
+                  variant={isRaidRunning ? "destructive" : "default"}
+                  onClick={() => setIsRaidRunning(!isRaidRunning)}
+                  className="bg-yellow-600 hover:bg-yellow-700"
+                >
+                  {isRaidRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRaidTimer(0)}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
-        </Card>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-4 gap-3">
-          <Button
-            onClick={() => recordEvent("raid", 0, isDoOrDieActive)}
-            className="h-20 flex flex-col gap-1 bg-gray-600 hover:bg-gray-700"
-          >
-            <div className="text-2xl font-bold">0</div>
-            <div className="text-xs">Empty</div>
-          </Button>
-          <Button
-            onClick={() => recordEvent("raid", 1, isDoOrDieActive)}
-            className="h-20 flex flex-col gap-1 bg-green-600 hover:bg-green-700"
-          >
-            <div className="text-2xl font-bold">1</div>
-            <div className="text-xs">Point</div>
-          </Button>
-          <Button
-            onClick={() => recordEvent("raid", 2, isDoOrDieActive)}
-            className="h-20 flex flex-col gap-1 bg-green-600 hover:bg-green-700"
-          >
-            <div className="text-2xl font-bold">2</div>
-            <div className="text-xs">Points</div>
-          </Button>
-          <Button
-            onClick={() => recordEvent("raid", 3, isDoOrDieActive)}
-            className="h-20 flex flex-col gap-1 bg-green-600 hover:bg-green-700"
-          >
-            <div className="text-2xl font-bold">3</div>
-            <div className="text-xs">Points</div>
-          </Button>
-          
-          <Button
-            onClick={() => recordEvent("bonus", 1)}
-            className="h-20 flex flex-col gap-1 bg-blue-600 hover:bg-blue-700"
-          >
-            <div className="text-2xl font-bold">B</div>
-            <div className="text-xs">Bonus</div>
-          </Button>
-          <Button
-            onClick={() => recordEvent("tackle", 1)}
-            className="h-20 flex flex-col gap-1 bg-red-600 hover:bg-red-700"
-          >
-            <div className="text-2xl font-bold">T</div>
-            <div className="text-xs">Tackle</div>
-          </Button>
-          <Button
-            onClick={() => togglePlayerOut(selectedRaider || '', activeTeam)}
-            disabled={!selectedRaider}
-            className="h-20 flex flex-col gap-1 bg-red-700 hover:bg-red-800"
-          >
-            <div className="text-2xl font-bold">OUT</div>
-            <div className="text-xs">Player</div>
-          </Button>
-          <Button
-            onClick={handleAllOut}
-            className="h-20 flex flex-col gap-1 bg-yellow-600 hover:bg-yellow-700"
-          >
-            <div className="text-2xl font-bold">AO</div>
-            <div className="text-xs">All-Out</div>
-          </Button>
+          {/* Team B Players */}
+          <div className="col-span-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-1 w-12 bg-blue-500 rounded"></div>
+              <span className="text-sm font-semibold text-blue-400">Team B Players</span>
+            </div>
+            <div className="grid grid-cols-8 gap-2">
+              {playersB.slice(0, 8).map((player) => {
+                const isOut = outPlayersB.includes(player.id);
+                const isActive = selectedRaider === player.id && activeTeam === "B";
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => activeTeam === "B" && setSelectedRaider(player.id === selectedRaider ? null : player.id)}
+                    className={`
+                      aspect-square rounded-lg border-2 flex flex-col items-center justify-center
+                      transition-all duration-300
+                      ${isActive
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/50 scale-110 ring-4 ring-blue-500/30 animate-pulse'
+                        : isOut
+                        ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40'
+                        : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-blue-400 hover:scale-105'
+                      }
+                    `}
+                  >
+                    <div className="text-lg font-bold">
+                      {player.jersey_number || '?'}
+                    </div>
+                    <div className="text-[7px] truncate w-full text-center px-1">
+                      {player.name.split(' ')[0]}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Undo/Redo */}
-        <div className="flex gap-3">
+      {/* Do or Die Warning */}
+      {isDoOrDieActive && (
+        <div className="px-6 py-3 bg-orange-500/20 border-y border-orange-500 animate-pulse">
+          <div className="text-center font-bold text-orange-400 text-lg">
+            ⚠️ DO OR DIE RAID ⚠️
+          </div>
+        </div>
+      )}
+
+      {/* Scoring Section - Dynamic Based on Raiding Team */}
+      <div className="px-6 py-6">
+        <div className="max-w-[1920px] mx-auto">
+          {/* Raider Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`h-2 w-16 ${activeTeam === "A" ? 'bg-red-500' : 'bg-blue-500'} rounded`}></div>
+              <h3 className={`text-lg font-bold ${activeTeam === "A" ? 'text-red-400' : 'text-blue-400'}`}>
+                RAIDER SECTION - {activeTeam === "A" ? teamA.name : teamB.name}
+              </h3>
+            </div>
+            
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                onClick={() => recordEvent("raid", 0, isDoOrDieActive)}
+                className="h-16 px-8 flex items-center gap-3 bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600"
+              >
+                <div className="text-3xl font-bold">0</div>
+                <div className="text-sm">Empty</div>
+              </Button>
+
+              <Button
+                onClick={() => recordEvent("raid", 1, isDoOrDieActive)}
+                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
+              >
+                <div className="text-3xl font-bold">1</div>
+                <div className="text-sm">Point</div>
+              </Button>
+
+              <Button
+                onClick={() => recordEvent("raid", 2, isDoOrDieActive)}
+                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
+              >
+                <div className="text-3xl font-bold">2</div>
+                <div className="text-sm">Points</div>
+              </Button>
+
+              <Button
+                onClick={() => recordEvent("raid", 3, isDoOrDieActive)}
+                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
+              >
+                <div className="text-3xl font-bold">3</div>
+                <div className="text-sm">Points</div>
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="h-16 px-8 flex items-center gap-3 bg-orange-600 hover:bg-orange-700 text-white border-2 border-orange-500">
+                    <div className="text-3xl font-bold">B</div>
+                    <div className="text-sm">Bonus</div>
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-slate-900 border-slate-700">
+                  {[1, 2, 3, 4, 5, 6, 7].map((bonus) => (
+                    <DropdownMenuItem
+                      key={bonus}
+                      onClick={() => recordEvent("bonus", bonus)}
+                      className="text-white hover:bg-orange-600 cursor-pointer"
+                    >
+                      Bonus +{bonus}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                onClick={() => recordEvent("raid", 0, isDoOrDieActive)}
+                className="h-16 px-8 flex items-center gap-3 bg-red-600 hover:bg-red-700 text-white border-2 border-red-500"
+              >
+                <div className="text-sm">Out of Bound</div>
+              </Button>
+
+              <Button
+                onClick={() => toast({ title: "Timeout called" })}
+                className="h-16 px-8 flex items-center gap-3 bg-blue-700 hover:bg-blue-800 text-white border-2 border-blue-600"
+              >
+                <div className="text-sm">Timeout</div>
+              </Button>
+            </div>
+          </div>
+
+          {/* Defense Section */}
+          <div className="mt-8">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`h-2 w-16 ${activeTeam === "A" ? 'bg-blue-500' : 'bg-red-500'} rounded`}></div>
+              <h3 className={`text-lg font-bold ${activeTeam === "A" ? 'text-blue-400' : 'text-red-400'}`}>
+                DEFENSE SECTION - {activeTeam === "A" ? teamB.name : teamA.name}
+              </h3>
+            </div>
+            
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                onClick={() => recordEvent("tackle", 1)}
+                className="h-16 px-8 flex items-center gap-3 bg-purple-600 hover:bg-purple-700 text-white border-2 border-purple-500"
+              >
+                <div className="text-sm">Tackle (+1)</div>
+              </Button>
+
+              <Button
+                onClick={() => recordEvent("tackle", 2)}
+                className="h-16 px-8 flex items-center gap-3 bg-purple-700 hover:bg-purple-800 text-white border-2 border-purple-600"
+              >
+                <div className="text-sm">Super Tackle (+2)</div>
+              </Button>
+
+              <Button
+                onClick={() => recordEvent("tackle", 1)}
+                className="h-16 px-8 flex items-center gap-3 bg-red-600 hover:bg-red-700 text-white border-2 border-red-500"
+              >
+                <div className="text-sm">Defender Out of Bound</div>
+              </Button>
+
+              <Button
+                onClick={() => toast({ title: "Defense timeout called" })}
+                className="h-16 px-8 flex items-center gap-3 bg-blue-700 hover:bg-blue-800 text-white border-2 border-blue-600"
+              >
+                <div className="text-sm">Timeout</div>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Control Bar - Fixed */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800 px-6 py-4 shadow-2xl z-50">
+        <div className="max-w-[1920px] mx-auto flex gap-4">
           <Button
             onClick={handleUndo}
             disabled={events.length === 0}
             variant="outline"
-            className="flex-1 h-12"
+            className="flex-1 h-14 text-lg border-slate-600 hover:bg-slate-800"
           >
             <Undo2 className="h-5 w-5 mr-2" />
             Undo
           </Button>
+
           <Button
-            disabled
+            onClick={handleRedo}
+            disabled={undoneEvents.length === 0}
             variant="outline"
-            className="flex-1 h-12"
+            className="flex-1 h-14 text-lg border-slate-600 hover:bg-slate-800"
           >
             <Redo2 className="h-5 w-5 mr-2" />
             Redo
           </Button>
-        </div>
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 bg-orange-500/10 border-orange-500/30">
-            <h4 className="font-semibold mb-3 text-orange-400">{teamA.name}</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Raid Points:</span>
-                <span className="font-bold">{teamAStats.raid}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Tackle Points:</span>
-                <span className="font-bold">{teamAStats.tackle}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Bonus Points:</span>
-                <span className="font-bold">{teamAStats.bonus}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">All-Out Points:</span>
-                <span className="font-bold">{teamAStats.allOut}</span>
-              </div>
-            </div>
-          </Card>
+          <Button
+            onClick={handleStopRaid}
+            variant="outline"
+            className="flex-1 h-14 text-lg border-red-600 text-red-400 hover:bg-red-950"
+          >
+            <StopCircle className="h-5 w-5 mr-2" />
+            Stop Raid
+          </Button>
 
-          <Card className="p-4 bg-blue-500/10 border-blue-500/30">
-            <h4 className="font-semibold mb-3 text-blue-400">{teamB.name}</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Raid Points:</span>
-                <span className="font-bold">{teamBStats.raid}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Tackle Points:</span>
-                <span className="font-bold">{teamBStats.tackle}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Bonus Points:</span>
-                <span className="font-bold">{teamBStats.bonus}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">All-Out Points:</span>
-                <span className="font-bold">{teamBStats.allOut}</span>
-              </div>
-            </div>
-          </Card>
+          <Button
+            onClick={handleNextRaid}
+            className="flex-1 h-14 text-lg bg-green-600 hover:bg-green-700"
+          >
+            Next Raid →
+          </Button>
         </div>
       </div>
+
+      {/* Player Select Dialog */}
+      <Dialog open={showPlayerSelectDialog} onOpenChange={setShowPlayerSelectDialog}>
+        <DialogContent className="sm:max-w-[600px] bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-white">
+              Select Next Raider - {activeTeam === "A" ? teamA.name : teamB.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-4 gap-4 py-6">
+            {(activeTeam === "A" ? playersA : playersB).slice(0, 8).map((player) => {
+              const outPlayers = activeTeam === "A" ? outPlayersA : outPlayersB;
+              const isOut = outPlayers.includes(player.id);
+              return (
+                <button
+                  key={player.id}
+                  onClick={() => !isOut && handlePlayerSelect(player.id)}
+                  disabled={isOut}
+                  className={`
+                    aspect-square rounded-xl border-2 flex flex-col items-center justify-center
+                    transition-all duration-300 hover:scale-110
+                    ${isOut
+                      ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40 cursor-not-allowed'
+                      : activeTeam === "A"
+                      ? 'bg-red-600 border-red-400 text-white hover:bg-red-700 shadow-lg hover:shadow-red-500/50'
+                      : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/50'
+                    }
+                  `}
+                >
+                  <div className="text-3xl font-bold mb-1">
+                    {player.jersey_number || '?'}
+                  </div>
+                  <div className="text-xs truncate w-full text-center px-2">
+                    {player.name}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
