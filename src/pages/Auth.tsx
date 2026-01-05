@@ -41,11 +41,31 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  const formatPhoneNumber = (phone: string) => {
+    // Remove all non-digit characters except +
+    const cleaned = phone.replace(/[^\d+]/g, "");
+
+    // If it starts with +, return as is
+    if (cleaned.startsWith("+")) return cleaned;
+
+    // If it's 10 digits, assume Indian number and add +91
+    if (cleaned.length === 10) return `+91${cleaned}`;
+
+    return cleaned;
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
-      const validated = authSchema.parse(formData);
+      const formattedPhone = formatPhoneNumber(formData.phone);
+
+      // Basic validation after formatting
+      if (formattedPhone.length < 10) {
+        throw new Error("Phone number is too short");
+      }
+
+      const validated = authSchema.parse({ ...formData, phone: formattedPhone });
       setLoading(true);
 
       const { data, error } = await supabase.auth.signUp({
@@ -71,7 +91,7 @@ const Auth = () => {
 
       toast({
         title: "Success!",
-        description: "Account created successfully",
+        description: "Account created successfully! You are now logged in.",
       });
     } catch (error: any) {
       toast({
@@ -86,12 +106,13 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       setLoading(true);
+      const formattedPhone = formatPhoneNumber(formData.phone);
 
       const { error } = await supabase.auth.signInWithPassword({
-        phone: formData.phone,
+        phone: formattedPhone,
         password: formData.password,
       });
 
@@ -143,11 +164,14 @@ const Auth = () => {
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+91 9876543210"
+                placeholder="9876543210"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Enter your 10-digit mobile number. We'll add +91 automatically.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

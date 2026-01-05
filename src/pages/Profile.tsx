@@ -1,452 +1,691 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, LogOut, Save, Trophy, Users, Target, Video } from "lucide-react";
+import { Camera, LogOut, Trophy, Users, Target, Video, Settings, BarChart3, Grid3X3, Shield, Zap, TrendingUp, Award, Flame, Star, ChevronRight, Edit3, Heart, Swords } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
+import { profileSchema } from "@/lib/validation";
+import { z } from "zod";
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    team_name: "",
-    avatar_url: "",
-  });
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [posts, setPosts] = useState<any[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [stats, setStats] = useState({
-    totalMatches: 0,
+    postsCount: 0,
+    followersCount: 0,
+    followingCount: 0,
+    // Raider Stats
     raidPoints: 0,
-    tacklePoints: 0,
+    touchPoints: 0,
     bonusPoints: 0,
+    superRaids: 0,
+    raidsAttempted: 0,
+    successfulRaids: 0,
+    // Defender Stats
+    tacklePoints: 0,
+    successfulTackles: 0,
+    superTackles: 0,
+    // Overall
+    totalMatches: 0,
   });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBio, setEditBio] = useState("");
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [displayedLevel, setDisplayedLevel] = useState(1);
+  const [activeTab, setActiveTab] = useState("stats");
 
   useEffect(() => {
-    fetchProfile();
-    fetchPlayerData();
+    fetchProfileData();
   }, []);
 
-  const fetchProfile = async () => {
+  const fetchProfileData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Get profile
+      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      // @ts-ignore - bio column exists but not in generated types
+      if (profileData) { setProfile(profileData); setEditBio((profileData as any).bio || ""); }
 
-      if (data) {
-        setProfile({
-          name: data.name || '',
-          phone: data.phone || '',
-          email: data.email || '',
-          team_name: data.team_name || '',
-          avatar_url: data.avatar_url || '',
-        });
+      // Get user's posts
+      // @ts-ignore - posts table exists but not in generated types
+      const { data: postsData } = await supabase.from('posts').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+      setPosts(postsData || []);
+
+      // Get followers/following count
+      // @ts-ignore - follows table exists but not in generated types
+      const { count: followersCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', user.id);
+      // @ts-ignore
+      const { count: followingCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', user.id);
+
+      // Get MY player records by PHONE NUMBER
+      const myPhone = profileData?.phone;
+      let myPlayerRecords: any[] = [];
+      if (myPhone) {
+        // @ts-ignore - casting to any to avoid deep type instantiation error
+        const { data: playersByPhone } = await (supabase.from('players') as any).select('id, team_id').eq('phone', myPhone);
+        myPlayerRecords = playersByPhone || [];
       }
+
+      const myPlayerIds = myPlayerRecords.map(p => p.id);
+      const myTeamIds = [...new Set(myPlayerRecords.map(p => p.team_id).filter(Boolean))];
+
+      // Fetch detailed match stats
+      if (myPlayerIds.length > 0) {
+        const { data: matchStats } = await supabase
+          .from('player_match_stats')
+          .select(`
+            match_id, raid_points, tackle_points, bonus_points,
+            touch_points, raids_attempted, successful_raids, super_raids,
+            successful_tackles, super_tackles,
+            matches(*, tournaments(name))
+          `)
+          .in('player_id', myPlayerIds);
+
+        if (matchStats) {
+          const matchesPlayed = matchStats.map((ms: any) => ms.matches).filter(Boolean);
+          const uniqueMatches = Array.from(new Map(matchesPlayed.map(m => [m.id, m])).values());
+          setMatches(uniqueMatches);
+
+          // Calculate all stats
+          let totalStats = {
+            raidPoints: 0, touchPoints: 0, bonusPoints: 0, superRaids: 0,
+            raidsAttempted: 0, successfulRaids: 0,
+            tacklePoints: 0, successfulTackles: 0, superTackles: 0,
+          };
+
+          matchStats.forEach((s: any) => {
+            totalStats.raidPoints += s.raid_points || 0;
+            totalStats.touchPoints += s.touch_points || 0;
+            totalStats.bonusPoints += s.bonus_points || 0;
+            totalStats.superRaids += s.super_raids || 0;
+            totalStats.raidsAttempted += s.raids_attempted || 0;
+            totalStats.successfulRaids += s.successful_raids || 0;
+            totalStats.tacklePoints += s.tackle_points || 0;
+            totalStats.successfulTackles += s.successful_tackles || 0;
+            totalStats.superTackles += s.super_tackles || 0;
+          });
+
+          setStats(prev => ({
+            ...prev,
+            ...totalStats,
+            totalMatches: uniqueMatches.length,
+            postsCount: postsData?.length || 0,
+            followersCount: followersCount || 0,
+            followingCount: followingCount || 0,
+          }));
+        }
+      } else {
+        setStats(prev => ({
+          ...prev,
+          postsCount: postsData?.length || 0,
+          followersCount: followersCount || 0,
+          followingCount: followingCount || 0,
+        }));
+      }
+
+      // Teams I'm a member of
+      if (myTeamIds.length > 0) {
+        const { data: teamsData } = await supabase.from('teams').select('*').in('id', myTeamIds);
+        setTeams(teamsData || []);
+      }
+
+      // Tournaments I participated in
+      if (myTeamIds.length > 0) {
+        const { data: tournamentTeams } = await supabase.from('tournament_teams').select('tournament_id, tournaments(*)').in('team_id', myTeamIds);
+        if (tournamentTeams) {
+          const tournamentsMap = tournamentTeams
+            .filter((tt: any) => tt.tournaments?.id)
+            .map((tt: any) => tt.tournaments);
+          const uniqueTournaments = Array.from(new Map(tournamentsMap.map((t: any) => [t.id, t])).values());
+          setTournaments(uniqueTournaments);
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchPlayerData = async () => {
+  // Calculate derived stats
+  const raidStrikeRate = stats.raidsAttempted > 0 ? Math.round((stats.successfulRaids / stats.raidsAttempted) * 100) : 0;
+  const tackleSuccessRate = (stats.successfulTackles + stats.superTackles) > 0 ? Math.round((stats.successfulTackles / (stats.successfulTackles + stats.superTackles)) * 100) : 0;
+  const totalPoints = stats.raidPoints + stats.tacklePoints;
+  const allRounderScore = Math.round((stats.raidPoints + stats.tacklePoints) / Math.max(stats.totalMatches, 1));
+
+  // PUBG-Style Level System
+  const calculateLevel = (xp: number) => {
+    const levels = [
+      { level: 1, title: "Noob", minXP: 0, color: "text-gray-400", barColor: "bg-gray-500" },
+      { level: 2, title: "Semi-Pro", minXP: 50, color: "text-green-400", barColor: "bg-green-500" },
+      { level: 3, title: "Pro", minXP: 150, color: "text-blue-400", barColor: "bg-blue-500" },
+      { level: 4, title: "Elite", minXP: 400, color: "text-purple-400", barColor: "bg-purple-500" },
+      { level: 5, title: "PKL Eligible", minXP: 800, color: "text-orange-400", barColor: "bg-orange-500" },
+      { level: 6, title: "PKL Prospect", minXP: 1500, color: "text-pink-400", barColor: "bg-pink-500" },
+      { level: 7, title: "PKL Player", minXP: 3000, color: "text-yellow-400", barColor: "bg-gradient-to-r from-yellow-500 to-amber-500" },
+    ];
+
+    let currentLevel = levels[0];
+    let nextLevel = levels[1];
+
+    for (let i = levels.length - 1; i >= 0; i--) {
+      if (xp >= levels[i].minXP) {
+        currentLevel = levels[i];
+        nextLevel = levels[i + 1] || null;
+        break;
+      }
+    }
+
+    const xpInCurrentLevel = xp - currentLevel.minXP;
+    const xpNeededForNext = nextLevel ? nextLevel.minXP - currentLevel.minXP : 0;
+    const progress = nextLevel ? Math.min(100, (xpInCurrentLevel / xpNeededForNext) * 100) : 100;
+    const xpToNext = nextLevel ? nextLevel.minXP - xp : 0;
+
+    return {
+      ...currentLevel,
+      nextTitle: nextLevel?.title || null,
+      progress: Math.round(progress),
+      xpToNext
+    };
+  };
+
+  const playerLevel = calculateLevel(totalPoints);
+
+  const handleSaveBio = async () => {
     try {
+      // Validate bio
+      profileSchema.pick({ bio: true }).parse({ bio: editBio });
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('phone')
-        .eq('id', user.id)
-        .single();
-
-      if (!profileData?.phone) return;
-
-      // Get player record
-      const { data: playerData } = await supabase
-        .from('players')
-        .select('*')
-        .eq('phone', profileData.phone)
-        .maybeSingle();
-
-      if (!playerData) return;
-
-      // Get player stats
-      setStats({
-        totalMatches: playerData.matches_played || 0,
-        raidPoints: playerData.total_raid_points || 0,
-        tacklePoints: playerData.total_tackle_points || 0,
-        bonusPoints: playerData.total_bonus_points || 0,
-      });
-
-      // Get matches
-      const { data: matchStats } = await supabase
-        .from('player_match_stats')
-        .select('match_id, matches(*, tournaments(name))')
-        .eq('player_id', playerData.id);
-      
-      setMatches(matchStats?.map(m => m.matches) || []);
-
-      // Get teams
-      const { data: teamsData } = await supabase
-        .from('players')
-        .select('team_id, teams(*)')
-        .eq('phone', profileData.phone);
-      
-      setTeams(teamsData?.map(t => t.teams).filter(Boolean) || []);
-
-      // Get tournaments through teams
-      if (playerData.team_id) {
-        const { data: tournamentsData } = await supabase
-          .from('tournament_teams')
-          .select('tournaments(*)')
-          .eq('team_id', playerData.team_id);
-        
-        setTournaments(tournamentsData?.map(t => t.tournaments).filter(Boolean) || []);
+      // @ts-ignore - bio column exists but not in generated types
+      await supabase.from('profiles').update({ bio: editBio } as any).eq('id', user.id);
+      setProfile({ ...profile, bio: editBio });
+      setIsEditing(false);
+      toast({ title: "Bio updated!" });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast({ title: error.errors[0].message, variant: "destructive" });
+      } else {
+        console.error(error);
+        toast({ title: "Failed to update bio", variant: "destructive" });
       }
-    } catch (error) {
-      console.error('Error fetching player data:', error);
     }
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0]) return;
-    
+    if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
     try {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/avatar.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('profile-photos')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('profile-photos')
-        .getPublicUrl(fileName);
-
-      await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id);
-
+      if (!user) return;
+      const fileName = `${user.id}/avatar.${file.name.split('.').pop()}`;
+      await supabase.storage.from('profile-photos').upload(fileName, file, { upsert: true });
+      const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(fileName);
+      await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
       setProfile({ ...profile, avatar_url: publicUrl });
-      
-      toast({
-        title: "Avatar updated",
-        description: "Your profile photo has been updated",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Upload failed",
-        description: error.message,
-      });
-    } finally {
-      setLoading(false);
-    }
+      toast({ title: "Photo updated!" });
+    } catch (error) { toast({ variant: "destructive", title: "Upload failed" }); }
   };
 
-  const handleSave = async () => {
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate('/auth'); };
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: profile.name,
-          team_name: profile.team_name,
-        })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been saved successfully",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Update failed",
-        description: error.message,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/auth');
-  };
+  if (loading) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div></div>;
+  }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="bg-gradient-hero p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">Profile</h1>
-        <p className="text-white/80">Manage your account</p>
-      </div>
-
-      <div className="p-4 -mt-4 space-y-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center mb-6">
-              <div className="relative">
-                <Avatar className="h-24 w-24">
-                  <AvatarImage src={profile.avatar_url} />
-                  <AvatarFallback className="text-2xl">
-                    {profile.name.charAt(0).toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <Button
-                  size="sm"
-                  className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full p-0"
-                  onClick={() => document.getElementById('avatar-upload')?.click()}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarUpload}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={profile.phone}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              {profile.email && (
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    value={profile.email}
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="team">Team Name</Label>
-                <Input
-                  id="team"
-                  placeholder="Your team name"
-                  value={profile.team_name}
-                  onChange={(e) => setProfile({ ...profile, team_name: e.target.value })}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Tabs defaultValue="matches" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="matches">Matches</TabsTrigger>
-            <TabsTrigger value="tournaments">Tournaments</TabsTrigger>
-            <TabsTrigger value="teams">Teams</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
-            <TabsTrigger value="highlights">Highlights</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="matches" className="space-y-3 mt-4">
-            {matches.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  No matches played yet
-                </CardContent>
-              </Card>
-            ) : (
-              matches.map((match) => (
-                <Card key={match.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{match.match_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {match.tournaments?.name || 'Friendly Match'}
-                        </p>
-                      </div>
-                      <Badge variant={match.status === 'completed' ? 'default' : 'secondary'}>
-                        {match.status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="tournaments" className="space-y-3 mt-4">
-            {tournaments.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Not part of any tournaments yet
-                </CardContent>
-              </Card>
-            ) : (
-              tournaments.map((tournament) => (
-                <Card key={tournament.id} className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate(`/tournaments/${tournament.id}`)}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-4">
-                      {tournament.logo_url && (
-                        <Avatar>
-                          <AvatarImage src={tournament.logo_url} />
-                          <AvatarFallback>{tournament.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div>
-                        <p className="font-medium">{tournament.name}</p>
-                        <p className="text-sm text-muted-foreground">{tournament.city}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="teams" className="space-y-3 mt-4">
-            {teams.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Not part of any teams yet
-                </CardContent>
-              </Card>
-            ) : (
-              teams.map((team) => (
-                <Card key={team.id} className="cursor-pointer hover:shadow-lg transition-shadow"
-                  onClick={() => navigate(`/teams/${team.id}`)}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-4">
-                      {team.logo_url && (
-                        <Avatar>
-                          <AvatarImage src={team.logo_url} />
-                          <AvatarFallback>{team.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div>
-                        <p className="font-medium">{team.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Captain: {team.captain_name}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="stats" className="space-y-3 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <Trophy className="h-8 w-8 mx-auto mb-2 text-primary" />
-                  <div className="text-2xl font-bold">{stats.totalMatches}</div>
-                  <div className="text-sm text-muted-foreground">Total Matches</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <Target className="h-8 w-8 mx-auto mb-2 text-red-600" />
-                  <div className="text-2xl font-bold">{stats.raidPoints}</div>
-                  <div className="text-sm text-muted-foreground">Raid Points</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <Users className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                  <div className="text-2xl font-bold">{stats.tacklePoints}</div>
-                  <div className="text-sm text-muted-foreground">Tackle Points</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6 text-center">
-                  <Trophy className="h-8 w-8 mx-auto mb-2 text-yellow-600" />
-                  <div className="text-2xl font-bold">{stats.bonusPoints}</div>
-                  <div className="text-sm text-muted-foreground">Bonus Points</div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="highlights" className="space-y-3 mt-4">
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Video className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  Highlights feature coming soon
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <div className="space-y-3 mt-6">
-          <Button
-            onClick={handleSave}
-            className="w-full"
-            disabled={loading}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? "Saving..." : "Save Profile"}
-          </Button>
-
-          <Button
-            variant="destructive"
-            onClick={handleLogout}
-            className="w-full"
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 overflow-x-hidden">
+      {/* Header Bar */}
+      <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between z-50">
+        <h1 className="text-lg font-black italic tracking-tighter text-slate-900">{profile?.name || "PROFILE"}</h1>
+        <div className="flex gap-2">
+          <button onClick={() => navigate('/settings')} className="p-2 text-slate-600 hover:text-slate-900"><Settings className="w-5 h-5" /></button>
+          <button onClick={handleLogout} className="p-2 text-red-500 hover:text-red-600"><LogOut className="w-5 h-5" /></button>
         </div>
       </div>
+
+      {/* DYNAMIC SPORTS HEADER WITH BRANDING ELEMENTS */}
+      <div className="relative pt-16 pb-12 px-6 overflow-hidden">
+        {/* Slanted Action Area with Jersey Mesh - Lighter for visibility but still energetic */}
+        <div
+          className="absolute top-0 left-0 w-full h-[90%] bg-slate-50 -z-10 origin-top-left -skew-y-6 translate-y-[-10%] border-b-8 border-slate-100/50"
+          style={{
+            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(0,0,0,0.03) 1px, transparent 0)`,
+            backgroundSize: '16px 16px'
+          }}
+        ></div>
+
+        {/* HOME PAGE STYLE BACKGROUND ELEMENTS */}
+        <div className="absolute top-10 right-[-20px] opacity-[0.03] rotate-12 -z-10">
+          <Trophy className="w-48 h-48 text-slate-900" />
+        </div>
+        <div className="absolute bottom-10 left-[-30px] opacity-[0.03] -rotate-12 -z-10">
+          <Zap className="w-40 h-40 text-slate-900" />
+        </div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] -z-10">
+          <Swords className="w-64 h-64 text-slate-900" />
+        </div>
+
+        {/* Glow Accents - Refined for Light Mode */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-[100px] rounded-full -mr-32 -mt-32 -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 blur-[80px] rounded-full -ml-24 -mb-24 -z-10"></div>
+
+        <div className="flex flex-col items-center text-center space-y-6">
+          {/* Centralized Avatar with Orbit */}
+          <div className="relative group">
+            {/* Level Progress Circle (SVG) */}
+            <svg className="w-36 h-36 -rotate-90">
+              <circle
+                cx="72"
+                cy="72"
+                r="68"
+                fill="transparent"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-slate-200"
+              />
+              <circle
+                cx="72"
+                cy="72"
+                r="68"
+                fill="transparent"
+                stroke="currentColor"
+                strokeWidth="6"
+                strokeDasharray={2 * Math.PI * 68}
+                strokeDashoffset={2 * Math.PI * 68 * (1 - playerLevel.progress / 100)}
+                strokeLinecap="round"
+                className="text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+              />
+            </svg>
+
+            {/* Main Avatar Container */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-28 h-28 rounded-[36px] bg-white p-1.5 shadow-2xl relative overflow-hidden ring-4 ring-slate-50 group-hover:scale-105 transition-transform duration-500">
+                <Avatar className="w-full h-full rounded-[30px] border-0">
+                  <AvatarImage src={profile?.avatar_url} className="object-cover" />
+                  <AvatarFallback className="bg-slate-50 text-slate-400 text-3xl font-black italic">
+                    {profile?.name?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+
+                {/* Camera Overlay */}
+                <button
+                  onClick={() => document.getElementById('avatar-upload')?.click()}
+                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm"
+                >
+                  <Camera className="w-6 h-6 text-white" />
+                </button>
+                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              </div>
+            </div>
+
+            {/* Level Badge Hooked to Orbit */}
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-amber-500 text-white px-4 py-1.5 rounded-xl text-[11px] font-black italic uppercase tracking-tighter shadow-xl shadow-amber-500/20 border-2 border-white">
+              <Trophy className="w-3 h-3 fill-current" />
+              LVL {playerLevel.level}
+            </div>
+          </div>
+
+          {/* User Identity Info - FIXED VISIBILITY (Dark Slate) */}
+          <div className="space-y-1">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 flex items-center justify-center gap-2 drop-shadow-sm">
+              {profile?.name}
+              <Badge className="bg-slate-900 text-amber-400 hover:bg-slate-800 border-0 text-[10px] h-5 px-2.5 font-black italic tracking-widest shadow-lg">PRO</Badge>
+            </h2>
+            <div className="inline-block px-5 py-1.5 bg-slate-900 rounded-xl shadow-lg border-b-2 border-slate-800">
+              <p className="text-[10px] font-black italic uppercase tracking-[0.4em] text-amber-400">{playerLevel.title}</p>
+            </div>
+          </div>
+
+          {/* Action Stats / XP Info - FIXED VISIBILITY (Dark Slate) */}
+          <div className="flex items-center gap-10 pt-2">
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-black italic text-slate-900 leading-none tracking-tight">{totalPoints}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1.5">TOTAL XP</span>
+            </div>
+            <div className="w-px h-10 bg-slate-200 rotate-12"></div>
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-black italic text-slate-900 leading-none tracking-tight">{stats.totalMatches}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1.5">BATTLES</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ATHLETIC STATS GRID */}
+      <div className="px-6 -mt-6 relative z-30">
+        <div className="bg-white border-2 border-slate-100 rounded-[32px] p-2 shadow-2xl shadow-slate-900/5">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-blue-50 transition-all group overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Users className="w-5 h-5 text-blue-600 mb-1.5" />
+              <span className="text-xl font-black italic text-slate-900 leading-none">{stats.followersCount}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Followers</span>
+            </div>
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-orange-50 transition-all group overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Flame className="w-5 h-5 text-orange-600 mb-1.5 animate-pulse" />
+              <span className="text-xl font-black italic text-slate-900 leading-none">{allRounderScore}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Rating</span>
+            </div>
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-amber-50 transition-all group overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Trophy className="w-5 h-5 text-amber-500 mb-1.5" />
+              <span className="text-xl font-black italic text-slate-900 leading-none">{tournaments.length}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Tourneys</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* NAVIGATION TABS */}
+      <Tabs defaultValue="stats" className="w-full mt-8" onValueChange={setActiveTab}>
+        <div className="px-6 flex items-center justify-between mb-6">
+          <TabsList className="bg-slate-100 p-1 rounded-2xl border border-slate-200 h-auto">
+            <TabsTrigger value="stats" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all border-0">Stats</TabsTrigger>
+            <TabsTrigger value="posts" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all border-0">Posts</TabsTrigger>
+          </TabsList>
+          <Button variant="ghost" size="icon" className="w-10 h-10 rounded-2xl text-slate-400 hover:text-slate-900 hover:bg-slate-100">
+            <Edit3 className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <TabsContent value="stats" className="mt-0 space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+          <div className="px-6">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="bg-transparent gap-6 h-auto p-0 mb-6 overflow-x-auto no-scrollbar justify-start border-0">
+                {['overview', 'matches', 'teams', 'tournaments', 'highlights'].map((tab) => (
+                  <TabsTrigger
+                    key={tab}
+                    value={tab}
+                    className="p-0 text-[11px] font-black italic uppercase tracking-widest text-slate-400 data-[state=active]:text-slate-900 data-[state=active]:bg-transparent relative after:absolute after:bottom-0 after:left-0 after:w-0 data-[state=active]:after:w-[80%] after:h-1.5 after:bg-amber-500 after:transition-all after:duration-300 pb-3 border-0"
+                  >
+                    {tab === 'tournaments' ? 'Tourneys' : tab === 'highlights' ? 'Clips' : tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              <TabsContent value="overview" className="mt-0 space-y-8">
+                {/* 🎯 RAIDER PERFORMANCE GAUGES */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <Zap className="w-3 h-3 text-red-600" />
+                      Raider Performance
+                    </h3>
+                    <Badge variant="outline" className="text-[10px] font-black italic border-red-600/20 text-red-600 bg-red-50 px-3">SR: {raidStrikeRate}%</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-red-500/20 transition-all shadow-sm">
+                      <div className="flex justify-between items-end mb-3">
+                        <span className="text-[9px] font-black italic uppercase text-slate-400">Raid Points</span>
+                        <span className="text-2xl font-black italic text-slate-900 leading-none">{stats.raidPoints}</span>
+                      </div>
+                      <Progress value={(stats.raidPoints / 500) * 100} className="h-2 bg-slate-100" indicatorClassName="bg-red-600 rounded-full" />
+                    </div>
+                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-red-500/20 transition-all shadow-sm">
+                      <div className="flex justify-between items-end mb-3">
+                        <span className="text-[9px] font-black italic uppercase text-slate-400">Success Rate</span>
+                        <span className="text-2xl font-black italic text-slate-900 leading-none">{raidStrikeRate}%</span>
+                      </div>
+                      <Progress value={raidStrikeRate} className="h-2 bg-slate-100" indicatorClassName="bg-orange-500 rounded-full" />
+                    </div>
+                  </div>
+
+                  {/* RESTORED DETAILED RAIDER GRID */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[{ l: 'Touch', v: stats.touchPoints }, { l: 'Bonus', v: stats.bonusPoints }, { l: 'S. Raid', v: stats.superRaids }].map((s, i) => (
+                      <div key={i} className="bg-white p-4 rounded-2xl border-2 border-slate-100 text-center hover:bg-red-50/30 transition-colors shadow-sm">
+                        <p className="text-[8px] font-black italic uppercase text-slate-400 mb-1">{s.l}</p>
+                        <p className="text-xl font-black italic text-slate-900">{s.v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 🛡️ DEFENDER PERFORMANCE GAUGES */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <Award className="w-3 h-3 text-blue-600" />
+                      Defender Performance
+                    </h3>
+                    <Badge variant="outline" className="text-[10px] font-black italic border-blue-600/20 text-blue-600 bg-blue-50 px-3">ACC: {tackleSuccessRate}%</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
+                      <div className="flex justify-between items-end mb-3">
+                        <span className="text-[9px] font-black italic uppercase text-slate-400">Tackle Points</span>
+                        <span className="text-2xl font-black italic text-slate-900 leading-none">{stats.tacklePoints}</span>
+                      </div>
+                      <Progress value={(stats.tacklePoints / 250) * 100} className="h-2 bg-slate-100" indicatorClassName="bg-blue-600 rounded-full" />
+                    </div>
+                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
+                      <div className="flex justify-between items-end mb-3">
+                        <span className="text-[9px] font-black italic uppercase text-slate-400">Success Rate</span>
+                        <span className="text-2xl font-black italic text-slate-900 leading-none">{tackleSuccessRate}%</span>
+                      </div>
+                      <Progress value={tackleSuccessRate} className="h-2 bg-slate-100" indicatorClassName="bg-cyan-500 rounded-full" />
+                    </div>
+                  </div>
+
+                  {/* RESTORED DETAILED DEFENDER GRID */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[{ l: 'Tackles', v: stats.successfulTackles }, { l: 'S. Tackle', v: stats.superTackles }, { l: 'Success', v: tackleSuccessRate + '%' }].map((s, i) => (
+                      <div key={i} className="bg-white p-4 rounded-2xl border-2 border-slate-100 text-center hover:bg-blue-50/30 transition-colors shadow-sm">
+                        <p className="text-[8px] font-black italic uppercase text-slate-400 mb-1">{s.l}</p>
+                        <p className="text-xl font-black italic text-slate-900">{s.v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* OVERALL IMPACT CARDS */}
+                <div className="grid grid-cols-2 gap-4 pb-8">
+                  <Card className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group hover:border-amber-500/20 transition-all shadow-sm">
+                    <CardContent className="p-6 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black italic uppercase tracking-widest text-slate-400">Season XP</span>
+                        <p className="text-3xl font-black italic text-slate-900 italic tracking-tighter leading-none">{totalPoints}</p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:scale-110 group-hover:rotate-12 transition-all">
+                        <Zap className="w-6 h-6 fill-current" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group hover:border-blue-500/20 transition-all shadow-sm">
+                    <CardContent className="p-6 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black italic uppercase tracking-widest text-slate-400">Battles</span>
+                        <p className="text-3xl font-black italic text-slate-900 italic tracking-tighter leading-none">{stats.totalMatches}</p>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 group-hover:scale-110 group-hover:-rotate-12 transition-all">
+                        <Award className="w-6 h-6 fill-current" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              {/* Matches Sub-Tab */}
+              <TabsContent value="matches" className="mt-0 space-y-4">
+                {matches.length === 0 ? (
+                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
+                    <Swords className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 rotate-12" />
+                    <Swords className="w-16 h-16 mx-auto mb-4 opacity-10" />
+                    <p className="text-xs font-black italic uppercase tracking-widest">Awaiting Battle...</p>
+                  </div>
+                ) : (
+                  matches.map((match: any) => (
+                    <Card key={match.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-amber-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 group-hover:rotate-12 transition-all">
+                        <Swords className="w-20 h-20" />
+                      </div>
+                      <CardContent className="p-5 relative z-10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-5">
+                            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border-2 border-slate-100 group-hover:bg-amber-50 transition-colors">
+                              <Swords className="w-6 h-6 text-slate-400 group-hover:text-amber-600 transition-colors" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{match.match_name}</p>
+                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
+                                <Trophy className="w-2 h-2 inline mr-1 mb-0.5" />
+                                {match.tournaments?.name || 'Friendly Arena'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <Badge className={`${match.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'} border-0 text-[10px] font-black italic uppercase px-3 py-1`}>
+                              {match.status}
+                            </Badge>
+                            <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </TabsContent>
+
+              {/* Teams Sub-Tab */}
+              <TabsContent value="teams" className="mt-0 space-y-4">
+                {teams.length === 0 ? (
+                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
+                    <Users className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 -rotate-12" />
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-10" />
+                    <p className="text-xs font-black italic uppercase tracking-widest">Build Your Squad</p>
+                  </div>
+                ) : (
+                  teams.map((team: any) => (
+                    <Card key={team.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-blue-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all">
+                        <Users className="w-20 h-20 -rotate-12" />
+                      </div>
+                      <CardContent className="p-5 relative z-10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-5">
+                            <Avatar className="w-14 h-14 rounded-2xl border-4 border-slate-100 group-hover:border-blue-500/10 transition-colors shadow-sm">
+                              <AvatarImage src={team.logo_url} />
+                              <AvatarFallback className="bg-slate-50 text-slate-400 text-xs font-black italic">{team.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{team.name}</p>
+                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
+                                <Users className="w-2 h-2 inline mr-1 mb-0.5" />
+                                {team.captain_name || 'LEADER'}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </TabsContent>
+
+              {/* Tournaments Sub-Tab */}
+              <TabsContent value="tournaments" className="mt-0 space-y-4">
+                {tournaments.length === 0 ? (
+                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
+                    <Trophy className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 rotate-12" />
+                    <Trophy className="w-16 h-16 mx-auto mb-4 opacity-10" />
+                    <p className="text-xs font-black italic uppercase tracking-widest">Champion Wanted</p>
+                  </div>
+                ) : (
+                  tournaments.map((t: any) => (
+                    <Card key={t.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-amber-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all">
+                        <Trophy className="w-20 h-20 rotate-12" />
+                      </div>
+                      <CardContent className="p-5 relative z-10">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-5">
+                            <Avatar className="w-14 h-14 rounded-2xl border-4 border-slate-100 group-hover:border-amber-500/10 transition-colors shadow-sm">
+                              <AvatarImage src={t.logo_url} />
+                              <AvatarFallback className="bg-slate-50 text-slate-400 text-xs font-black italic">{t.name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{t.name}</p>
+                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
+                                <Trophy className="w-2 h-2 inline mr-1 mb-0.5 text-amber-500" />
+                                {t.city || 'VENUE'}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </TabsContent>
+
+              {/* Highlights Sub-Tab */}
+              <TabsContent value="highlights" className="mt-0">
+                <div className="py-24 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-3xl -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors"></div>
+                  <Video className="w-48 h-48 absolute -left-10 -bottom-10 opacity-5 -rotate-12" />
+                  <Video className="w-16 h-16 mx-auto mb-4 text-slate-200 group-hover:text-amber-500/40 transition-colors" />
+                  <p className="text-xs font-black italic uppercase tracking-widest">Action clips coming...</p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </TabsContent>
+
+        {/* POSTS TAB CONTENT */}
+        <TabsContent value="posts" className="mt-0 px-6 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-12">
+          {posts.length === 0 ? (
+            <div className="py-24 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
+              <Grid3X3 className="w-32 h-32 absolute -right-8 -bottom-8 opacity-5 rotate-45" />
+              <Grid3X3 className="w-16 h-16 mx-auto mb-4 opacity-10" />
+              <p className="text-xs font-black italic uppercase tracking-widest">Ready for the Gram?</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-5">
+              {posts.map(post => (
+                <div key={post.id} className="aspect-[4/5] bg-white rounded-[32px] overflow-hidden border-2 border-slate-100 relative group cursor-pointer active:scale-95 transition-all shadow-md hover:shadow-xl hover:-translate-y-1">
+                  {post.image_url ? (
+                    <img src={post.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50 relative">
+                      <Grid3X3 className="w-24 h-24 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] group-hover:scale-110 transition-transform" />
+                      <p className="text-[10px] font-black italic text-slate-400 line-clamp-5 uppercase leading-relaxed tracking-tight relative z-10">{post.content}</p>
+                    </div>
+                  )}
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-slate-100 transform translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
+                    <Heart className="w-4 h-4 text-red-500 fill-current" />
+                  </div>
+                  <div className="absolute bottom-5 left-5">
+                    <div className="bg-slate-900/80 backdrop-blur-xl px-3 py-1.5 rounded-xl flex items-center gap-2 border border-white/20 shadow-2xl">
+                      <Heart className="w-3 h-3 text-red-500 fill-current" />
+                      <span className="text-[10px] font-black italic text-white tracking-tighter">{post.likes_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <BottomNav />
     </div>

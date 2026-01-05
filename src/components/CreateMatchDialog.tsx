@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus } from "lucide-react";
+import { matchSchema } from "@/lib/validation";
+import { z } from "zod";
 
 interface CreateMatchDialogProps {
   tournamentId: string;
@@ -26,42 +28,30 @@ export const CreateMatchDialog = ({ tournamentId, teams, onMatchCreated }: Creat
     match_date: "",
     match_time: "",
     venue: "",
+    round_name: "",
+    group_name: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.team_a_id || !formData.team_b_id) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select both teams",
-      });
-      return;
-    }
-
-    if (formData.team_a_id === formData.team_b_id) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Teams must be different",
-      });
-      return;
-    }
-
     setLoading(true);
     try {
+      // Validate with Zod
+      matchSchema.parse(formData);
+
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       const { error } = await supabase.from('matches').insert({
         tournament_id: tournamentId,
         match_name: formData.match_name,
-        match_number: formData.match_number ? parseInt(formData.match_number) : null,
+        match_number: formData.match_number || null,
         team_a_id: formData.team_a_id,
         team_b_id: formData.team_b_id,
         match_date: formData.match_date,
         match_time: formData.match_time || null,
         venue: formData.venue || null,
+        round_name: formData.round_name || null,
+        group_name: formData.group_name || null,
         status: 'upcoming',
         created_by: user?.id,
       });
@@ -82,14 +72,24 @@ export const CreateMatchDialog = ({ tournamentId, teams, onMatchCreated }: Creat
         match_date: "",
         match_time: "",
         venue: "",
+        round_name: "",
+        group_name: "",
       });
       onMatchCreated();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to create match",
-      });
+      if (error instanceof z.ZodError) {
+        toast({
+          variant: "destructive",
+          title: "Validation Error",
+          description: error.errors[0].message,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Failed to create match",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -119,14 +119,35 @@ export const CreateMatchDialog = ({ tournamentId, teams, onMatchCreated }: Creat
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="match_number">Match Number (Optional)</Label>
+              <Input
+                id="match_number"
+                type="number"
+                placeholder="1"
+                value={formData.match_number}
+                onChange={(e) => setFormData({ ...formData, match_number: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="round_name">Round (e.g. Semi Final)</Label>
+              <Input
+                id="round_name"
+                placeholder="Final"
+                value={formData.round_name}
+                onChange={(e) => setFormData({ ...formData, round_name: e.target.value })}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="match_number">Match Number (Optional)</Label>
+            <Label htmlFor="group_name">Group Name (Optional)</Label>
             <Input
-              id="match_number"
-              type="number"
-              placeholder="1"
-              value={formData.match_number}
-              onChange={(e) => setFormData({ ...formData, match_number: e.target.value })}
+              id="group_name"
+              placeholder="Group A"
+              value={formData.group_name}
+              onChange={(e) => setFormData({ ...formData, group_name: e.target.value })}
             />
           </div>
 

@@ -14,9 +14,15 @@ const Matches = () => {
   const { toast } = useToast();
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMatches();
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+      await fetchMatches();
+    };
+    init();
   }, []);
 
   const fetchMatches = async () => {
@@ -61,7 +67,17 @@ const Matches = () => {
           </Card>
         ) : (
           matches.map((match) => (
-            <Card key={match.id} className="hover:shadow-lg transition-shadow">
+            <Card
+              key={match.id}
+              className="hover:shadow-lg transition-all cursor-pointer border-slate-200"
+              onClick={() => {
+                if (match.status === 'completed') {
+                  navigate(`/match-summary/${match.id}`);
+                } else {
+                  navigate(`/matches/${match.id}/spectate`);
+                }
+              }}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -87,14 +103,14 @@ const Matches = () => {
                   <div className="text-lg font-bold">
                     Score: <span className="text-primary">{match.team_a_score}</span> - <span className="text-secondary">{match.team_b_score}</span>
                   </div>
-                  {match.status !== 'completed' && (
+                  {match.status !== 'completed' && match.created_by === currentUserId && (
                     <Button
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/matches/${match.id}/score`);
                       }}
-                      className="gap-2"
+                      className="gap-2 bg-primary hover:bg-primary/90"
                     >
                       <PlayCircle className="h-4 w-4" />
                       {match.status === 'live' ? 'Continue' : 'Start'} Scoring
@@ -106,7 +122,7 @@ const Matches = () => {
           ))
         )}
       </div>
-      
+
       <BottomNav />
     </div>
   );

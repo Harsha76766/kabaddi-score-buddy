@@ -19,11 +19,16 @@ const playerSchema = z.object({
 interface AddPlayerDialogProps {
   teamId: string;
   onPlayerAdded: () => void;
+  open?: boolean;
+  setOpen?: (open: boolean) => void;
 }
 
-export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps) => {
+export const AddPlayerDialog = ({ teamId, onPlayerAdded, open: externalOpen, setOpen: externalSetOpen }: AddPlayerDialogProps) => {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = externalSetOpen !== undefined ? externalSetOpen : setInternalOpen;
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [playerPhone, setPlayerPhone] = useState("");
@@ -32,29 +37,46 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
   const [showScanner, setShowScanner] = useState(false);
   const [qrInviteLink, setQrInviteLink] = useState("");
 
+  const formatPhoneNumber = (phone: string) => {
+    // Remove all non-digit characters except +
+    const cleaned = phone.replace(/[^\d+]/g, "");
+
+    // If it starts with +, return as is
+    if (cleaned.startsWith("+")) return cleaned;
+
+    // If it's 10 digits, assume Indian number and add +91
+    if (cleaned.length === 10) return `+91${cleaned}`;
+
+    return cleaned;
+  };
+
   const handlePhoneChange = async (value: string) => {
     setPlayerPhone(value);
     setPlayerName(""); // Clear name when phone changes
-    
+
     // Auto-fetch player if phone is 10 digits or more
-    if (value.length >= 10) {
+    const formattedPhone = formatPhoneNumber(value);
+    if (formattedPhone.length >= 13) { // +91 + 10 digits = 13 chars
       setIsFetchingPlayer(true);
       try {
         // Check if user exists in profiles (registered users)
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, name, phone')
-          .eq('phone', value)
+          .eq('phone', formattedPhone)
           .maybeSingle();
 
         if (profile) {
           setPlayerName(profile.name);
         } else {
-          toast({
-            variant: "destructive",
-            title: "Player not registered",
-            description: "This phone number is not registered. Player must sign up first.",
-          });
+          // Only show error if we have a full valid phone number
+          if (value.length >= 10) {
+            toast({
+              variant: "destructive",
+              title: "Player not registered",
+              description: "This phone number is not registered. Player must sign up first.",
+            });
+          }
         }
       } catch (error) {
         console.error('Error fetching player:', error);
@@ -66,7 +88,7 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
 
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!playerName) {
       toast({
         variant: "destructive",
@@ -75,10 +97,11 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
       });
       return;
     }
-    
+
     try {
-      const validated = playerSchema.parse({ 
-        phone: playerPhone,
+      const formattedPhone = formatPhoneNumber(playerPhone);
+      const validated = playerSchema.parse({
+        phone: formattedPhone,
         jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : undefined
       });
       setLoading(true);
@@ -87,7 +110,7 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
       const { data: profile } = await supabase
         .from("profiles")
         .select("id, name, phone")
-        .eq("phone", playerPhone)
+        .eq("phone", formattedPhone)
         .maybeSingle();
 
       if (!profile) {
@@ -164,9 +187,9 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
     try {
       const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const inviteLink = `${window.location.origin}/join-team?code=${inviteCode}&team=${teamId}`;
-      
+
       await navigator.clipboard.writeText(inviteLink);
-      
+
       toast({
         title: "Invite Link Copied!",
         description: "Share this link with players to join the team",
@@ -213,142 +236,147 @@ export const AddPlayerDialog = ({ teamId, onPlayerAdded }: AddPlayerDialogProps)
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} className="gap-2">
-        <Phone className="h-4 w-4" />
-        Add Player
-      </Button>
+      {externalOpen === undefined && (
+        <Button onClick={() => setOpen(true)} className="gap-2">
+          <Phone className="h-4 w-4" />
+          Add Player
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Add Players to Team</DialogTitle>
           </DialogHeader>
 
-        <Tabs defaultValue="manual" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="manual">
-              <Phone className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="link">
-              <LinkIcon className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="whatsapp">
-              <MessageCircle className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="qr">
-              <QrCode className="h-4 w-4" />
-            </TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="manual" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="manual">
+                <Phone className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="link">
+                <LinkIcon className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp">
+                <MessageCircle className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="qr">
+                <QrCode className="h-4 w-4" />
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="manual" className="space-y-4">
-            <p className="text-sm text-muted-foreground">Add registered player by phone number</p>
-            <form onSubmit={handleAddPlayer} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="player-phone">Phone Number</Label>
-                <Input
-                  id="player-phone"
-                  type="tel"
-                  placeholder="+91 9876543210"
-                  value={playerPhone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  disabled={isFetchingPlayer}
-                  required
-                />
-                {isFetchingPlayer && <p className="text-xs text-muted-foreground">Checking for registered player...</p>}
-              </div>
-              {playerName && (
-                <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-                  <p className="text-sm font-medium">Player Found:</p>
-                  <p className="text-lg font-bold text-primary">{playerName}</p>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="jersey-number">Jersey Number (Optional)</Label>
-                <Input
-                  id="jersey-number"
-                  type="number"
-                  placeholder="7"
-                  min="1"
-                  max="99"
-                  value={jerseyNumber}
-                  onChange={(e) => setJerseyNumber(e.target.value)}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Adding..." : "Add Player"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="link" className="space-y-4">
-            <p className="text-sm text-muted-foreground">Generate an invite link to share with players</p>
-            <Button onClick={generateInviteLink} className="w-full">
-              <LinkIcon className="h-4 w-4 mr-2" />
-              Generate & Copy Invite Link
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="whatsapp" className="space-y-4">
-            <p className="text-sm text-muted-foreground">Share team invite via WhatsApp</p>
-            <Button onClick={shareViaWhatsApp} className="w-full bg-green-600 hover:bg-green-700">
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Share on WhatsApp
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="qr" className="space-y-4">
-            <Tabs defaultValue="scan" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="scan">
-                  <Camera className="h-4 w-4 mr-2" />
-                  Scan QR
-                </TabsTrigger>
-                <TabsTrigger value="generate">
-                  <QrCode className="h-4 w-4 mr-2" />
-                  Generate QR
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="scan" className="space-y-4 pt-4">
-                <p className="text-sm text-muted-foreground text-center">
-                  Scan a player's registration QR code to add them instantly
-                </p>
-                {showScanner ? (
-                  <QRScanner 
-                    onScan={handleQRScan}
-                    onError={(error) => {
-                      toast({
-                        variant: "destructive",
-                        title: "Scanner Error",
-                        description: error,
-                      });
-                    }}
+            <TabsContent value="manual" className="space-y-4">
+              <p className="text-sm text-muted-foreground">Add registered player by phone number</p>
+              <form onSubmit={handleAddPlayer} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="player-phone">Phone Number</Label>
+                  <Input
+                    id="player-phone"
+                    type="tel"
+                    placeholder="9876543210"
+                    value={playerPhone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    disabled={isFetchingPlayer}
+                    required
                   />
-                ) : (
-                  <Button onClick={() => setShowScanner(true)} className="w-full gap-2">
-                    <Camera className="h-4 w-4" />
-                    Open Camera Scanner
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Enter 10-digit mobile number. We'll add +91 automatically.
+                  </p>
+                  {isFetchingPlayer && <p className="text-xs text-muted-foreground">Checking for registered player...</p>}
+                </div>
+                {playerName && (
+                  <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <p className="text-sm font-medium">Player Found:</p>
+                    <p className="text-lg font-bold text-primary">{playerName}</p>
+                  </div>
                 )}
-              </TabsContent>
+                <div className="space-y-2">
+                  <Label htmlFor="jersey-number">Jersey Number (Optional)</Label>
+                  <Input
+                    id="jersey-number"
+                    type="number"
+                    placeholder="7"
+                    min="1"
+                    max="99"
+                    value={jerseyNumber}
+                    onChange={(e) => setJerseyNumber(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Adding..." : "Add Player"}
+                </Button>
+              </form>
+            </TabsContent>
 
-              <TabsContent value="generate" className="space-y-4 pt-4">
-                <p className="text-sm text-muted-foreground text-center">
-                  Generate a QR code for players to scan and join your team
-                </p>
-                {qrInviteLink ? (
-                  <QRCodeDisplay value={qrInviteLink} />
-                ) : (
-                  <Button onClick={generateQRInvite} className="w-full gap-2">
-                    <QrCode className="h-4 w-4" />
-                    Generate Team Invite QR
-                  </Button>
-                )}
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            <TabsContent value="link" className="space-y-4">
+              <p className="text-sm text-muted-foreground">Generate an invite link to share with players</p>
+              <Button onClick={generateInviteLink} className="w-full">
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Generate & Copy Invite Link
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="whatsapp" className="space-y-4">
+              <p className="text-sm text-muted-foreground">Share team invite via WhatsApp</p>
+              <Button onClick={shareViaWhatsApp} className="w-full bg-green-600 hover:bg-green-700">
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Share on WhatsApp
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="qr" className="space-y-4">
+              <Tabs defaultValue="scan" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="scan">
+                    <Camera className="h-4 w-4 mr-2" />
+                    Scan QR
+                  </TabsTrigger>
+                  <TabsTrigger value="generate">
+                    <QrCode className="h-4 w-4 mr-2" />
+                    Generate QR
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="scan" className="space-y-4 pt-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Scan a player's registration QR code to add them instantly
+                  </p>
+                  {showScanner ? (
+                    <QRScanner
+                      onScan={handleQRScan}
+                      onError={(error) => {
+                        toast({
+                          variant: "destructive",
+                          title: "Scanner Error",
+                          description: error,
+                        });
+                      }}
+                    />
+                  ) : (
+                    <Button onClick={() => setShowScanner(true)} className="w-full gap-2">
+                      <Camera className="h-4 w-4" />
+                      Open Camera Scanner
+                    </Button>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="generate" className="space-y-4 pt-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Generate a QR code for players to scan and join your team
+                  </p>
+                  {qrInviteLink ? (
+                    <QRCodeDisplay value={qrInviteLink} />
+                  ) : (
+                    <Button onClick={generateQRInvite} className="w-full gap-2">
+                      <QrCode className="h-4 w-4" />
+                      Generate Team Invite QR
+                    </Button>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

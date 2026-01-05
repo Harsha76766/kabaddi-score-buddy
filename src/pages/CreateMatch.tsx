@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 import { z } from "zod";
+import { AddTeamDialog } from "@/components/AddTeamDialog";
 
 const matchSchema = z.object({
   match_name: z.string().min(2, "Match name must be at least 2 characters"),
@@ -71,7 +72,7 @@ const CreateMatch = () => {
           venue: validated.venue,
           match_type: validated.match_type,
           match_date: validated.match_date,
-          status: "live",
+          status: "upcoming",
           created_by: user?.id,
         }])
         .select()
@@ -81,15 +82,21 @@ const CreateMatch = () => {
 
       toast({
         title: "Match created!",
-        description: "Redirecting to live scoring...",
+        description: "Setting up players and toss...",
       });
 
-      navigate(`/match/${data.id}`);
+      // Navigate to the tournament detail or same page with setup open
+      // For individual matches, we'll redirect to a setup flow
+      navigate(`/matches/${data.id}/score`, { state: { setup: true } });
     } catch (error: any) {
+      let errorMessage = error.message;
+      if (error instanceof z.ZodError) {
+        errorMessage = error.errors[0].message;
+      }
       toast({
         variant: "destructive",
         title: "Error creating match",
-        description: error.message,
+        description: errorMessage,
       });
     } finally {
       setLoading(false);
@@ -97,47 +104,51 @@ const CreateMatch = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero p-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-[#FF5722] p-4 flex flex-col items-center justify-center">
+      <div className="w-full max-w-2xl space-y-8">
+        <div className="flex items-center justify-center relative w-full mb-8">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => navigate("/")}
-            className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20"
+            className="absolute left-0 text-white hover:bg-white/10"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-6 h-6" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-white">Create Match</h1>
-            <p className="text-white/80">Set up a new Kabaddi match</p>
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-white tracking-tight">Create Match</h1>
+            <p className="text-white/90 text-sm mt-1">Set up a new Kabaddi match</p>
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Match Details</CardTitle>
+        <Card className="border-none shadow-2xl rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="bg-white pb-2 pt-8 px-8">
+            <CardTitle className="text-2xl font-bold text-slate-800">Match Details</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreateMatch} className="space-y-4">
+          <CardContent className="p-8 pt-4">
+            <form onSubmit={handleCreateMatch} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="match_name">Match Name</Label>
+                <Label htmlFor="match_name" className="text-slate-600 font-semibold ml-1 text-sm uppercase tracking-wider">Match Name</Label>
                 <Input
                   id="match_name"
                   value={formData.match_name}
                   onChange={(e) => setFormData({ ...formData, match_name: e.target.value })}
                   placeholder="Warriors vs Titans"
+                  className="h-12 bg-slate-50 border-slate-200 focus:bg-white transition-all text-lg font-medium rounded-xl"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="team_a">Team A</Label>
+                  <div className="flex items-center justify-between ml-1">
+                    <Label htmlFor="team_a" className="text-slate-600 font-semibold text-sm uppercase tracking-wider">Team A</Label>
+                    <AddTeamDialog tournamentId="" onTeamAdded={fetchTeams} />
+                  </div>
                   <Select
                     value={formData.team_a_id}
                     onValueChange={(value) => setFormData({ ...formData, team_a_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 bg-slate-50 border-slate-200 rounded-xl font-medium">
                       <SelectValue placeholder="Select Team A" />
                     </SelectTrigger>
                     <SelectContent>
@@ -151,12 +162,15 @@ const CreateMatch = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="team_b">Team B</Label>
+                  <div className="flex items-center justify-between ml-1">
+                    <Label htmlFor="team_b" className="text-slate-600 font-semibold text-sm uppercase tracking-wider">Team B</Label>
+                    <AddTeamDialog tournamentId="" onTeamAdded={fetchTeams} />
+                  </div>
                   <Select
                     value={formData.team_b_id}
                     onValueChange={(value) => setFormData({ ...formData, team_b_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 bg-slate-50 border-slate-200 rounded-xl font-medium">
                       <SelectValue placeholder="Select Team B" />
                     </SelectTrigger>
                     <SelectContent>
@@ -171,24 +185,25 @@ const CreateMatch = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="venue">Venue</Label>
+                <Label htmlFor="venue" className="text-slate-600 font-semibold ml-1 text-sm uppercase tracking-wider">Venue</Label>
                 <Input
                   id="venue"
                   value={formData.venue}
                   onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
                   placeholder="Stadium name"
+                  className="h-12 bg-slate-50 border-slate-200 rounded-xl font-medium"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="match_type">Match Type</Label>
+                  <Label htmlFor="match_type" className="text-slate-600 font-semibold ml-1 text-sm uppercase tracking-wider">Match Type</Label>
                   <Select
                     value={formData.match_type}
                     onValueChange={(value: any) => setFormData({ ...formData, match_type: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 bg-slate-50 border-slate-200 rounded-xl font-medium">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -199,18 +214,19 @@ const CreateMatch = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="match_date">Date</Label>
+                  <Label htmlFor="match_date" className="text-slate-600 font-semibold ml-1 text-sm uppercase tracking-wider">Date</Label>
                   <Input
                     id="match_date"
                     type="date"
                     value={formData.match_date}
                     onChange={(e) => setFormData({ ...formData, match_date: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-200 rounded-xl font-medium"
                     required
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full h-14 bg-[#FF5722] hover:bg-[#F4511E] text-white text-lg font-bold rounded-2xl shadow-lg shadow-orange-200 transition-all active:scale-95" disabled={loading}>
                 {loading ? "Creating..." : "Start Match"}
               </Button>
             </form>

@@ -24,6 +24,7 @@ interface MatchStartDialogProps {
   playersB: Player[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onComplete?: () => void;
 }
 
 export const MatchStartDialog = ({
@@ -36,6 +37,7 @@ export const MatchStartDialog = ({
   playersB,
   open,
   onOpenChange,
+  onComplete,
 }: MatchStartDialogProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -94,10 +96,21 @@ export const MatchStartDialog = ({
 
     setLoading(true);
     try {
-      // Update match status to live
-      const { error } = await supabase
-        .from("matches")
-        .update({ status: "live" })
+      // Calculate starting team
+      const winner = tossWinner === "A" ? "A" : "B";
+      const startingTeam = tossChoice === "raid" ? winner : (winner === "A" ? "B" : "A");
+
+      // Update match status and persistence columns
+      const { error } = await (supabase.from("matches") as any)
+        .update({
+          status: "live",
+          active_team: startingTeam,
+          current_timer: 1200,
+          current_half: 1,
+          toss_winner_id: tossWinner === "A" ? teamAId : teamBId,
+          toss_choice: tossChoice,
+          is_timer_running: true
+        })
         .eq("id", matchId);
 
       if (error) throw error;
@@ -107,16 +120,13 @@ export const MatchStartDialog = ({
         description: "The match is now live",
       });
 
-      // Navigate to live scoring with toss data
-      navigate(`/matches/${matchId}/score`, {
-        state: {
-          playing7A: selectedPlayersA,
-          playing7B: selectedPlayersB,
-          tossWinner: tossWinner === "A" ? teamAId : teamBId,
-          tossChoice,
-        },
-      });
-      
+      if (onComplete) {
+        onComplete();
+      } else {
+        // Navigate to live scoring
+        navigate(`/matches/${matchId}/score`);
+      }
+
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -155,10 +165,9 @@ export const MatchStartDialog = ({
                       onClick={() => togglePlayerA(player.id)}
                       className={`
                         p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all
-                        ${
-                          selectedPlayersA.includes(player.id)
-                            ? "bg-primary/20 border-primary"
-                            : "bg-card border-border hover:border-primary/50"
+                        ${selectedPlayersA.includes(player.id)
+                          ? "bg-primary/20 border-primary"
+                          : "bg-card border-border hover:border-primary/50"
                         }
                       `}
                     >
@@ -192,10 +201,9 @@ export const MatchStartDialog = ({
                       onClick={() => togglePlayerB(player.id)}
                       className={`
                         p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all
-                        ${
-                          selectedPlayersB.includes(player.id)
-                            ? "bg-primary/20 border-primary"
-                            : "bg-card border-border hover:border-primary/50"
+                        ${selectedPlayersB.includes(player.id)
+                          ? "bg-primary/20 border-primary"
+                          : "bg-card border-border hover:border-primary/50"
                         }
                       `}
                     >
@@ -233,11 +241,10 @@ export const MatchStartDialog = ({
                 <Label className="mb-3 block">Toss Winner</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <Card
-                    className={`p-4 cursor-pointer transition-all ${
-                      tossWinner === "A"
+                    className={`p-4 cursor-pointer transition-all ${tossWinner === "A"
                         ? "bg-primary/20 border-primary"
                         : "hover:border-primary/50"
-                    }`}
+                      }`}
                     onClick={() => setTossWinner("A")}
                   >
                     <div className="flex items-center gap-3">
@@ -255,11 +262,10 @@ export const MatchStartDialog = ({
                     </div>
                   </Card>
                   <Card
-                    className={`p-4 cursor-pointer transition-all ${
-                      tossWinner === "B"
+                    className={`p-4 cursor-pointer transition-all ${tossWinner === "B"
                         ? "bg-primary/20 border-primary"
                         : "hover:border-primary/50"
-                    }`}
+                      }`}
                     onClick={() => setTossWinner("B")}
                   >
                     <div className="flex items-center gap-3">
@@ -284,11 +290,10 @@ export const MatchStartDialog = ({
                   <Label className="mb-3 block">Toss Choice</Label>
                   <div className="grid grid-cols-2 gap-3">
                     <Card
-                      className={`p-4 cursor-pointer transition-all ${
-                        tossChoice === "raid"
+                      className={`p-4 cursor-pointer transition-all ${tossChoice === "raid"
                           ? "bg-primary/20 border-primary"
                           : "hover:border-primary/50"
-                      }`}
+                        }`}
                       onClick={() => setTossChoice("raid")}
                     >
                       <div className="flex items-center gap-3">
@@ -306,11 +311,10 @@ export const MatchStartDialog = ({
                       </div>
                     </Card>
                     <Card
-                      className={`p-4 cursor-pointer transition-all ${
-                        tossChoice === "defend"
+                      className={`p-4 cursor-pointer transition-all ${tossChoice === "defend"
                           ? "bg-primary/20 border-primary"
                           : "hover:border-primary/50"
-                      }`}
+                        }`}
                       onClick={() => setTossChoice("defend")}
                     >
                       <div className="flex items-center gap-3">

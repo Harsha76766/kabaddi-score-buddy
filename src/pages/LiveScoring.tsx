@@ -1,120 +1,461 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowLeft, Play, Pause, RotateCcw, Clock, 
-  Undo2, Redo2, Flag, Settings, ChevronDown, StopCircle
-} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TopHeader } from "@/components/live-scoring/TopHeader";
+import { Scoreboard } from "@/components/live-scoring/Scoreboard";
+import { PlayersArea } from "@/components/live-scoring/PlayersArea";
+import { SplitScoringPanel } from "@/components/live-scoring/SplitScoringPanel";
+import { BottomControls } from "@/components/live-scoring/BottomControls";
+import { SubstitutionDialog } from "@/components/live-scoring/SubstitutionDialog";
+import { TieBreakerSetupDialog } from "@/components/live-scoring/TieBreakerSetupDialog";
+import { MatchStartDialog } from "@/components/MatchStartDialog";
+import { Match, Player, Team, RaidState, RaidAction } from "@/components/live-scoring/types";
+import { cn } from "@/lib/utils";
+import { matchAudio } from "@/lib/audio";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogTrigger
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
-interface Player {
-  id: string;
-  name: string;
-  jersey_number: number | null;
-  team_id: string;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  logo_url: string | null;
-}
-
-interface Match {
-  id: string;
-  team_a_id: string;
-  team_b_id: string;
-  team_a_score: number;
-  team_b_score: number;
-  match_name: string;
-}
-
-interface MatchEvent {
-  id: string;
-  event_type: string;
-  raider_id: string | null;
-  team_id: string;
-  points_awarded: number;
-  is_do_or_die: boolean;
-  is_all_out: boolean;
-  raid_time: number | null;
-}
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Volume2, VolumeX, Settings } from "lucide-react";
 
 const LiveScoring = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
 
+  // --- Data State ---
   const [match, setMatch] = useState<Match | null>(null);
   const [teamA, setTeamA] = useState<Team | null>(null);
   const [teamB, setTeamB] = useState<Team | null>(null);
   const [playersA, setPlayersA] = useState<Player[]>([]);
   const [playersB, setPlayersB] = useState<Player[]>([]);
-  
-  const [selectedRaider, setSelectedRaider] = useState<string | null>(null);
-  const [selectedDefenders, setSelectedDefenders] = useState<string[]>([]);
-  const [activeTeam, setActiveTeam] = useState<"A" | "B">("A");
-  
-  const [matchTimer, setMatchTimer] = useState(0);
-  const [isMatchRunning, setIsMatchRunning] = useState(false);
-  const [raidTimer, setRaidTimer] = useState(0);
-  const [isRaidRunning, setIsRaidRunning] = useState(false);
-  
-  const [events, setEvents] = useState<MatchEvent[]>([]);
-  const [undoneEvents, setUndoneEvents] = useState<MatchEvent[]>([]);
-  const [halfNumber, setHalfNumber] = useState(1);
-  const [raidCount, setRaidCount] = useState(0);
-  const [showPlayerSelectDialog, setShowPlayerSelectDialog] = useState(false);
-  const [showBonusDropdown, setShowBonusDropdown] = useState(false);
-  
-  const [teamAStats, setTeamAStats] = useState({
-    raid: 0, tackle: 0, bonus: 0, allOut: 0
-  });
-  const [teamBStats, setTeamBStats] = useState({
-    raid: 0, tackle: 0, bonus: 0, allOut: 0
-  });
-  
-  const [outPlayersA, setOutPlayersA] = useState<string[]>([]);
-  const [outPlayersB, setOutPlayersB] = useState<string[]>([]);
-  const [consecutiveZeroRaids, setConsecutiveZeroRaids] = useState(0);
 
+  // --- Game State ---
+  const [activeTeam, setActiveTeam] = useState<"A" | "B">("A");
+  const [raidState, setRaidState] = useState<RaidState>('IDLE');
+  const [selectedRaiderId, setSelectedRaiderId] = useState<string | null>(null);
+  const [outPlayers, setOutPlayers] = useState<string[]>([]); // IDs of players currently out
+  const [hasMatchStarted, setHasMatchStarted] = useState(false);
+  const [isSelectingRaider, setIsSelectingRaider] = useState(false);
+
+  // --- Setup State ---
+  const [showSetup, setShowSetup] = useState(location.state?.setup || false);
+
+  // --- Defender Selection State ---
+  const [selectionMode, setSelectionMode] = useState<'RAIDER' | 'DEFENDER'>('RAIDER');
+  const [selectedDefenderIds, setSelectedDefenderIds] = useState<string[]>([]);
+  const [pendingRaidAction, setPendingRaidAction] = useState<RaidAction | null>(null);
+
+  // --- Timer State ---
+  const [matchTimer, setMatchTimer] = useState(1200); // 20 mins in seconds
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [raidTimer, setRaidTimer] = useState(30);
+  const [isRaidRunning, setIsRaidRunning] = useState(false);
+  const [half, setHalf] = useState(1);
+  const [firstRaidingTeam, setFirstRaidingTeam] = useState<"A" | "B">("A"); // Track who started 1st half
+
+  // --- History State (for Undo/Redo) ---
+  const [history, setHistory] = useState<any[]>([]);
+  const [future, setFuture] = useState<any[]>([]); // For Redo
+  const [lastRaids, setLastRaids] = useState<string[]>([]);
+
+  // --- Substitution State ---
+  const [substitutionOpen, setSubstitutionOpen] = useState(false);
+  const [substitutionTeam, setSubstitutionTeam] = useState<"A" | "B">("A");
+
+  // --- Advanced Match Logic ---
+  const [emptyRaidsA, setEmptyRaidsA] = useState(0);
+  const [emptyRaidsB, setEmptyRaidsB] = useState(0);
+  const [timeoutsA, setTimeoutsA] = useState(0);
+  const [timeoutsB, setTimeoutsB] = useState(0);
+
+  // --- New Timeout & Audio State ---
+  const [activeTimeout, setActiveTimeout] = useState<"A" | "B" | "OFFICIAL" | null>(null);
+  const [timeoutTimer, setTimeoutTimer] = useState(0);
+  const [isMatchPaused, setIsMatchPaused] = useState(false); // Pauses both timers during timeout
+  const [savedRaidTimer, setSavedRaidTimer] = useState(0); // Store raid timer when paused
+  const [isMuted, setIsMuted] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState({
+    timeoutDuration: 60, // 1 minute per official rules
+    maxTimeouts: 2,
+    raidDuration: 30,
+    halfDuration: 1200, // 20 minutes per half
+    intervalDuration: 300, // 5 minutes half-time break
+  });
+
+  // --- Match State & Half-Time Logic ---
+  const [matchState, setMatchState] = useState<
+    'NOT_STARTED' | 'LIVE_HALF_1' | 'COMPLETING_RAID' | 'HALF_TIME_BREAK' | 'LIVE_HALF_2' | 'MATCH_ENDED'
+  >('NOT_STARTED');
+  const [intervalTimer, setIntervalTimer] = useState(0);
+
+  // Half stats for display during half-time and match end
+  const [halfStats, setHalfStats] = useState({
+    half1: { scoreA: 0, scoreB: 0, raidsA: 0, raidsB: 0 },
+    half2: { scoreA: 0, scoreB: 0, raidsA: 0, raidsB: 0 }
+  });
+
+  // Combined scoring mode - enables both panels to be clickable
+  const [showManualPoints, setShowManualPoints] = useState(false);
+
+  // Tie-breaker state
+  const [showTieBreakerSetup, setShowTieBreakerSetup] = useState(false);
+  const [isTieBreakerMode, setIsTieBreakerMode] = useState(false);
+  const [tieBreakerRaiders, setTieBreakerRaiders] = useState<{ A: string[]; B: string[] }>({ A: [], B: [] });
+  const [tieBreakerRaidIndex, setTieBreakerRaidIndex] = useState(0); // 0-9 (alternating teams)
+  const [tieBreakerScore, setTieBreakerScore] = useState({ A: 0, B: 0 });
+  const [tieBreakerFirstTeam, setTieBreakerFirstTeam] = useState<'A' | 'B'>('A');
+  const [tieBreakerWinner, setTieBreakerWinner] = useState<'A' | 'B' | null>(null);
+
+  // --- Sync Refs ---
+  const timerRef = useRef(1200);
+  const isSyncing = useRef(false);
+
+  // --- Timeout Tick (countdown during timeout, auto-resumes when done) ---
+  useEffect(() => {
+    let interval: any;
+    if (activeTimeout && timeoutTimer > 0) {
+      interval = setInterval(() => {
+        setTimeoutTimer(prev => {
+          if (prev <= 1) {
+            matchAudio.playBuzzer();
+            // Auto-resume match when timeout ends
+            setActiveTimeout(null);
+            setIsMatchPaused(false);
+            return 0;
+          }
+          if (prev <= 5) matchAudio.playTick();
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTimeout, timeoutTimer]);
+
+  useEffect(() => {
+    matchAudio.setMuted(isMuted);
+  }, [isMuted]);
+
+  // Update ref whenever state changes
+  useEffect(() => {
+    timerRef.current = matchTimer;
+  }, [matchTimer]);
+
+  // --- Initialization ---
   useEffect(() => {
     if (id) fetchMatchData();
   }, [id]);
 
+  // Match Timer - respects pause state and handles half-time logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isMatchRunning) {
+    if (isTimerRunning && matchTimer > 0 && !isMatchPaused) {
       interval = setInterval(() => {
-        setMatchTimer(prev => prev + 1);
+        setMatchTimer(prev => prev - 1);
       }, 1000);
+    } else if (matchTimer === 0 && isTimerRunning) {
+      // Timer just hit 0 - handle half/match end
+      if (raidState === 'RAIDING') {
+        // Raid in progress - let it complete before ending
+        setMatchState('COMPLETING_RAID');
+        // Don't stop timer running - raid will continue
+      } else {
+        // No raid in progress - proceed with half/match end
+        setIsTimerRunning(false);
+        if (half === 1) {
+          // Save 1st half stats
+          setHalfStats(prev => ({
+            ...prev,
+            half1: {
+              scoreA: match?.team_a_score || 0,
+              scoreB: match?.team_b_score || 0,
+              raidsA: history.filter(h => h.action.raidingTeam === 'A').length,
+              raidsB: history.filter(h => h.action.raidingTeam === 'B').length
+            }
+          }));
+          // End of 1st half - start interval break
+          setMatchState('HALF_TIME_BREAK');
+          setIntervalTimer(settings.intervalDuration);
+          matchAudio.playBuzzer();
+        } else {
+          // Save 2nd half stats
+          const half1ScoreA = halfStats.half1.scoreA;
+          const half1ScoreB = halfStats.half1.scoreB;
+          setHalfStats(prev => ({
+            ...prev,
+            half2: {
+              scoreA: (match?.team_a_score || 0) - half1ScoreA,
+              scoreB: (match?.team_b_score || 0) - half1ScoreB,
+              raidsA: history.filter(h => h.action.raidingTeam === 'A').length - prev.half1.raidsA,
+              raidsB: history.filter(h => h.action.raidingTeam === 'B').length - prev.half1.raidsB
+            }
+          }));
+
+
+          // End of 2nd half - show match summary
+          // If tied, Match Summary will show "Shootout" button
+          setMatchState('MATCH_ENDED');
+          matchAudio.playBuzzer();
+        }
+      }
     }
     return () => clearInterval(interval);
-  }, [isMatchRunning]);
+  }, [isTimerRunning, matchTimer, isMatchPaused, raidState, half, settings.intervalDuration, match, history, halfStats.half1]);
+
+  // Throttled Timer Sync to Database
+  useEffect(() => {
+    if (!match || !hasMatchStarted) return;
+
+    // Sync timer every 10 seconds to avoid excessive DB writes
+    const timerSyncInterval = setInterval(async () => {
+      if (isSyncing.current) return;
+      isSyncing.current = true;
+      try {
+        await (supabase.from("matches") as any).update({
+          current_timer: timerRef.current,
+          is_timer_running: isTimerRunning,
+          current_half: half,
+          active_team: activeTeam
+        }).eq("id", match.id);
+      } finally {
+        isSyncing.current = false;
+      }
+    }, 10000);
+
+    return () => clearInterval(timerSyncInterval);
+  }, [match?.id, hasMatchStarted, isTimerRunning, half, activeTeam]);
+
+  // Raid Timer - respects pause state (pauses during timeout)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRaidRunning && raidTimer > 0 && !isMatchPaused) {
+      interval = setInterval(() => {
+        setRaidTimer(prev => {
+          const next = prev - 1;
+          if (next <= 5 && next > 0) {
+            matchAudio.playTick();
+          } else if (next === 0) {
+            matchAudio.playBuzzer();
+          }
+          return next;
+        });
+      }, 1000);
+    } else if (raidTimer === 0) {
+      setIsRaidRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [isRaidRunning, raidTimer, isMatchPaused]);
+
+  // --- Half-Time Interval Timer ---
+  useEffect(() => {
+    if (matchState !== 'HALF_TIME_BREAK' || intervalTimer <= 0) return;
+
+    const interval = setInterval(() => {
+      setIntervalTimer(prev => {
+        if (prev <= 1) {
+          // Interval complete - just stop timer, user will click to start 2nd half
+          matchAudio.playBuzzer();
+          return 0;
+        }
+        if (prev <= 5) matchAudio.playTick();
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [matchState, intervalTimer]);
+
+  // Manual start of 2nd half
+  const handleStart2ndHalf = () => {
+    // 2nd half starts with the OPPOSITE team from who started 1st half
+    const secondHalfStartingTeam = firstRaidingTeam === 'A' ? 'B' : 'A';
+
+    setMatchState('LIVE_HALF_2');
+    setHalf(2);
+    setMatchTimer(settings.halfDuration);
+    setActiveTeam(secondHalfStartingTeam);
+
+    // Reset empty raids / DOD for the new half
+    setEmptyRaidsA(0);
+    setEmptyRaidsB(0);
+
+    setIsTimerRunning(true);
+    setRaidState('RAIDING');
+    setIsSelectingRaider(true);
+    setRaidTimer(settings.raidDuration);
+    setIsRaidRunning(true);
+    matchAudio.playBuzzer();
+  };
+
+  // --- Custom Back Button Handler (shows full-screen exit overlay) ---
+  const [showExitScreen, setShowExitScreen] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRaidRunning) {
-      interval = setInterval(() => {
-        setRaidTimer(prev => prev + 1);
-      }, 1000);
+    if (!hasMatchStarted) return;
+
+    // Push a fake history entry so we can intercept back button
+    window.history.pushState({ kabaddiMatch: true }, '');
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (match?.status === 'live') {
+        // Prevent navigation
+        window.history.pushState({ kabaddiMatch: true }, '');
+
+        // Pause the match and show exit screen
+        setIsMatchPaused(true);
+        setShowExitScreen(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [hasMatchStarted, match?.status]);
+
+  // Handle exit screen actions
+  const handleContinueMatch = async () => {
+    // Try to force fullscreen first (required for orientation lock on most browsers)
+    const docEl = document.documentElement;
+    try {
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if ((docEl as any).webkitRequestFullscreen) {
+        await (docEl as any).webkitRequestFullscreen();
+      }
+    } catch (e) {
+      console.log('Fullscreen not available');
     }
-    return () => clearInterval(interval);
-  }, [isRaidRunning]);
+
+    // Now try to lock orientation to landscape
+    try {
+      if (window.screen.orientation && (window.screen.orientation as any).lock) {
+        await (window.screen.orientation as any).lock('landscape');
+      } else if ((window.screen as any).lockOrientation) {
+        (window.screen as any).lockOrientation('landscape');
+      } else if ((window.screen as any).mozLockOrientation) {
+        (window.screen as any).mozLockOrientation('landscape');
+      } else if ((window.screen as any).msLockOrientation) {
+        (window.screen as any).msLockOrientation('landscape');
+      }
+    } catch (e) {
+      console.log('Orientation lock not available - please rotate your device manually');
+    }
+
+    // Resume match regardless
+    setShowExitScreen(false);
+    setIsMatchPaused(false);
+  };
+
+  const handleExitMatch = () => {
+    // Exit fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => { });
+    }
+    setShowExitScreen(false);
+    navigate('/');
+  };
+
+  // --- Auto Fullscreen & Landscape on Page Load ---
+  const forceFullscreenAndLandscape = async () => {
+    const docEl = document.documentElement;
+
+    // Step 1: Request fullscreen first (required for orientation lock)
+    try {
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if ((docEl as any).webkitRequestFullscreen) {
+        await (docEl as any).webkitRequestFullscreen();
+      } else if ((docEl as any).mozRequestFullScreen) {
+        await (docEl as any).mozRequestFullScreen();
+      } else if ((docEl as any).msRequestFullscreen) {
+        await (docEl as any).msRequestFullscreen();
+      }
+    } catch (e) {
+      console.log('Fullscreen request failed:', e);
+    }
+
+    // Step 2: Lock to landscape orientation
+    try {
+      if (window.screen.orientation && (window.screen.orientation as any).lock) {
+        await (window.screen.orientation as any).lock('landscape');
+      } else if ((window.screen as any).lockOrientation) {
+        (window.screen as any).lockOrientation('landscape');
+      } else if ((window.screen as any).mozLockOrientation) {
+        (window.screen as any).mozLockOrientation('landscape');
+      } else if ((window.screen as any).msLockOrientation) {
+        (window.screen as any).msLockOrientation('landscape');
+      }
+    } catch (e) {
+      console.log('Orientation lock failed:', e);
+    }
+  };
+
+  // Trigger on first user interaction (click from previous page counts)
+  useEffect(() => {
+    // Small delay to ensure we're in a user gesture context
+    const timer = setTimeout(() => {
+      forceFullscreenAndLandscape();
+    }, 100);
+
+    // Also trigger on first touch/click in case the above doesn't work
+    const handleInteraction = () => {
+      forceFullscreenAndLandscape();
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+  }, []);
+
+  const reconstructMatchState = (events: any[], currentMatch: Match) => {
+    let currentOutPlayers: string[] = [];
+    let currentHistory: any[] = [];
+    let currentA = 0;
+    let currentB = 0;
+    let currentActive: "A" | "B" = "A"; // Assume A starts if no toss info
+
+    // If match has toss info, set initial active team
+    // (This matches logic in fetchMatchData for starting team)
+
+    events.forEach(event => {
+      const snapshot = event.event_data?.snapshot;
+      const action = event.event_data?.action as RaidAction;
+
+      if (!snapshot || !action) return;
+
+      // Snapshot for Undo
+      currentHistory.push({
+        action: action,
+        scoreSnapshot: snapshot.score,
+        outPlayersSnapshot: snapshot.outPlayers,
+        isAllOut: event.is_all_out
+      });
+
+      currentActive = currentActive === "A" ? "B" : "A";
+    });
+
+    setHistory(currentHistory);
+  };
 
   const fetchMatchData = async () => {
     try {
@@ -127,752 +468,1262 @@ const LiveScoring = () => {
       if (matchError) throw matchError;
       setMatch(matchData);
 
-      const [teamAData, teamBData] = await Promise.all([
+      // Initialize state from existing match data (persistence)
+      if (matchData.status === 'live' || matchData.status === 'completed') {
+        const m = matchData as any;
+        setHasMatchStarted(true);
+        setMatchTimer(m.current_timer ?? 1200);
+        setHalf(m.current_half ?? 1);
+        setOutPlayers(m.out_player_ids || []);
+        setActiveTeam((m.active_team as "A" | "B") || "A");
+        // For live matches, always start the timer (auto-resume)
+        if (matchData.status === 'live') {
+          setIsTimerRunning(true);
+        } else {
+          setIsTimerRunning(m.is_timer_running ?? false);
+        }
+      }
+
+      const [tA, tB, pA, pB, events] = await Promise.all([
         supabase.from("teams").select("*").eq("id", matchData.team_a_id).single(),
         supabase.from("teams").select("*").eq("id", matchData.team_b_id).single(),
-      ]);
-
-      if (teamAData.data) setTeamA(teamAData.data);
-      if (teamBData.data) setTeamB(teamBData.data);
-
-      const [playersAData, playersBData] = await Promise.all([
         supabase.from("players").select("*").eq("team_id", matchData.team_a_id),
         supabase.from("players").select("*").eq("team_id", matchData.team_b_id),
+        supabase.from("match_events").select("*").eq("match_id", matchData.id).order('created_at', { ascending: true })
       ]);
 
-      setPlayersA(playersAData.data || []);
-      setPlayersB(playersBData.data || []);
+      setTeamA(tA.data);
+      setTeamB(tB.data);
+      setPlayersA(pA.data || []);
+      setPlayersB(pB.data || []);
 
-      const { data: eventsData } = await supabase
-        .from("match_events")
-        .select("*")
-        .eq("match_id", id)
-        .order("created_at", { ascending: true });
-      
-      if (eventsData) {
-        setEvents(eventsData);
-        recalculateStats(eventsData);
+      if (events.data && events.data.length > 0) {
+        const lastFiveCodes = events.data.slice(-5).reverse().map(e => ((e as any).points_awarded ?? (e as any).points ?? 0).toString());
+        setLastRaids(lastFiveCodes);
+
+        // Reconstruct History Stack
+        reconstructMatchState(events.data, matchData);
       }
+
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error loading match",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Error loading match", description: error.message });
     }
   };
 
-  const recalculateStats = (eventsList: MatchEvent[]) => {
-    const statsA = { raid: 0, tackle: 0, bonus: 0, allOut: 0 };
-    const statsB = { raid: 0, tackle: 0, bonus: 0, allOut: 0 };
-    
-    eventsList.forEach(event => {
-      const isTeamA = event.team_id === match?.team_a_id;
-      const stats = isTeamA ? statsA : statsB;
-      
-      if (event.event_type === "raid") stats.raid += event.points_awarded;
-      else if (event.event_type === "tackle") stats.tackle += event.points_awarded;
-      else if (event.event_type === "bonus") stats.bonus += event.points_awarded;
-      else if (event.event_type === "all_out") stats.allOut += event.points_awarded;
-    });
-    
-    setTeamAStats(statsA);
-    setTeamBStats(statsB);
+  // --- Actions ---
+
+  const handleStartMatch = () => {
+    if (playersA.length < 7 || playersB.length < 7) {
+      toast({
+        variant: "destructive",
+        title: "Teams Incomplete",
+        description: "Both teams must have at least 7 players to start setup."
+      });
+      return;
+    }
+    setShowSetup(true);
   };
 
-  const recordEvent = async (eventType: string, points: number, isDoOrDie = false, isAllOut = false) => {
+  const onSetupComplete = async () => {
+    // Re-fetch everything from DB now that MatchStartDialog has initialized it
+    await fetchMatchData();
+
+    // Start match timer
+    setMatchTimer(settings.halfDuration);
+    setIsTimerRunning(true);
+    setMatchState('LIVE_HALF_1');
+
+    // Track which team starts 1st half (so 2nd half uses opposite team)
+    setFirstRaidingTeam(activeTeam);
+
+    // Start first raid immediately
+    setIsSelectingRaider(true);
+    setRaidState('RAIDING');
+    setRaidTimer(settings.raidDuration);
+    setIsRaidRunning(true);
+    setShowSetup(false);
+  };
+
+  const handleSelectRaider = (playerId: string) => {
+    if (!hasMatchStarted) {
+      toast({ variant: "destructive", title: "Match not started", description: "Please start the match first." });
+      return;
+    }
+    if (!isSelectingRaider) {
+      return;
+    }
+
+    setSelectedRaiderId(playerId);
+    setIsSelectingRaider(false); // Selection done
+    // Timer is already running
+  };
+
+  const handleSelectDefender = async (playerId: string) => {
+    let newSelection: string[];
+
+    // Toggle selection
+    if (selectedDefenderIds.includes(playerId)) {
+      newSelection = selectedDefenderIds.filter(id => id !== playerId);
+    } else {
+      newSelection = [...selectedDefenderIds, playerId];
+    }
+
+    setSelectedDefenderIds(newSelection);
+
+    // CHECK FOR AUTO-SUBMIT
+    if (pendingRaidAction) {
+      let shouldSubmit = false;
+
+      // Case 1: Touch Points (e.g. 2 points -> need 2 defenders)
+      if (pendingRaidAction.touchPoints > 0) {
+        if (newSelection.length === pendingRaidAction.touchPoints) {
+          shouldSubmit = true;
+        }
+      }
+      // Case 2: Tackle (Raider Out -> need at least 1 tackler)
+      else if (pendingRaidAction.raiderOut) {
+        if (newSelection.length === 1) {
+          shouldSubmit = true;
+        }
+      }
+
+      if (shouldSubmit) {
+        const finalAction = {
+          ...pendingRaidAction,
+          defendersOut: pendingRaidAction.raiderOut ? [] : newSelection,
+          tacklerId: pendingRaidAction.raiderOut ? newSelection[0] : undefined
+        };
+        await processRaid(finalAction);
+        setSelectionMode('RAIDER');
+        setSelectedDefenderIds([]);
+        setPendingRaidAction(null);
+      }
+    }
+  };
+
+  const handleRecordOutcome = async (action: RaidAction) => {
+    if (action.touchPoints > 0 || action.raiderOut) {
+      setPendingRaidAction(action);
+      setSelectionMode('DEFENDER');
+      // Removed toast for "Select Defenders"
+    } else {
+      await processRaid(action);
+    }
+  };
+
+  // --- Technical Point Handler ---
+  const handleTechnicalPoint = async (team: "A" | "B") => {
     if (!match) return;
 
-    const raidingTeam = activeTeam === "A" ? teamA : teamB;
-    const defendingTeam = activeTeam === "A" ? teamB : teamA;
-    
-    if (!raidingTeam) return;
+    const pointsToA = team === "A" ? 1 : 0;
+    const pointsToB = team === "B" ? 1 : 0;
 
+    const newScoreA = match.team_a_score + pointsToA;
+    const newScoreB = match.team_b_score + pointsToB;
+
+    setMatch(prev => prev ? { ...prev, team_a_score: newScoreA, team_b_score: newScoreB } : null);
+
+    await (supabase.from("matches") as any).update({
+      team_a_score: newScoreA,
+      team_b_score: newScoreB,
+      current_timer: matchTimer
+    }).eq("id", match.id);
+
+    // Removed toast
+  };
+
+
+  // --- Timeout Handler (Pauses Match) ---
+  const handleToggleTimeout = (team: "A" | "B") => {
+    // Check if team has timeouts remaining (max 2 per team per match)
+    const currentTimeouts = team === 'A' ? timeoutsA : timeoutsB;
+    if (currentTimeouts >= settings.maxTimeouts) {
+      toast({
+        variant: "destructive",
+        title: "No Timeouts Remaining",
+        description: `${team === 'A' ? teamA?.name : teamB?.name} has used all ${settings.maxTimeouts} timeouts.`
+      });
+      return;
+    }
+
+    // Save current raid timer state
+    setSavedRaidTimer(raidTimer);
+
+    // Pause match (both timers will stop due to isMatchPaused check in effects)
+    setIsMatchPaused(true);
+    setActiveTimeout(team);
+    setTimeoutTimer(settings.timeoutDuration); // 60 seconds
+
+    // Increment team's timeout count
+    if (team === 'A') {
+      setTimeoutsA(prev => prev + 1);
+    } else {
+      setTimeoutsB(prev => prev + 1);
+    }
+
+    toast({
+      title: "Timeout Called",
+      description: `${team === 'A' ? teamA?.name : teamB?.name} called a timeout. Match paused.`
+    });
+  };
+
+  // --- Official Timeout Handler ---
+  const handleOfficialTimeout = () => {
+    setSavedRaidTimer(raidTimer);
+    setIsMatchPaused(true);
+    setActiveTimeout("OFFICIAL");
+    setTimeoutTimer(settings.timeoutDuration);
+    toast({ title: "Official Timeout", description: "Match paused for official timeout." });
+  };
+
+  // --- Resume Match Handler ---
+  const handleResumeMatch = () => {
+    setIsMatchPaused(false);
+    setActiveTimeout(null);
+    setTimeoutTimer(0);
+
+    // Restore raid timer if there was an active raid
+    if (savedRaidTimer > 0) {
+      setRaidTimer(savedRaidTimer);
+    }
+    setSavedRaidTimer(0);
+
+    toast({ title: "Match Resumed", description: "Timers are now running." });
+  };
+
+  // --- Substitution Handler ---
+  const handleOpenSubstitution = (team: "A" | "B") => {
+    setSubstitutionTeam(team);
+    setSubstitutionOpen(true);
+  };
+
+  const handleConfirmSubstitution = async (activePlayerId: string, benchPlayerId: string) => {
+    const teamPlayers = substitutionTeam === "A" ? playersA : playersB;
+    const setTeamPlayers = substitutionTeam === "A" ? setPlayersA : setPlayersB;
+
+    const activeIndex = teamPlayers.findIndex(p => p.id === activePlayerId);
+    const benchIndex = teamPlayers.findIndex(p => p.id === benchPlayerId);
+
+    if (activeIndex === -1 || benchIndex === -1) return;
+
+    // Create new array
+    const newPlayers = [...teamPlayers];
+
+    // Swap
+    [newPlayers[activeIndex], newPlayers[benchIndex]] = [newPlayers[benchIndex], newPlayers[activeIndex]];
+
+    setTeamPlayers(newPlayers);
+
+    // Handle Out Status Transfer
+    let nextOutPlayers = [...outPlayers];
+    if (outPlayers.includes(activePlayerId)) {
+      // If the player coming OUT was marked as 'out', the new player entering takes that 'out' status
+      nextOutPlayers = outPlayers.map(id => id === activePlayerId ? benchPlayerId : id);
+      setOutPlayers(nextOutPlayers);
+    }
+
+    // Sync to DB
+    if (match) {
+      await (supabase.from("matches") as any).update({
+        out_player_ids: nextOutPlayers
+      }).eq("id", match.id);
+    }
+  };
+
+  const updatePlayerStats = async (
+    matchId: string,
+    action: RaidAction,
+    raiderId: string,
+    // Active defenders count BEFORE the raid outcome (snapshot)
+    activeDefendersCount: number
+  ) => {
     try {
-      // Use the secure server-side validated function
-      const { data: eventId, error } = await supabase.rpc('insert_match_event', {
+      // 1. Update Raider Stats
+      const { data: existingRaider } = await supabase
+        .from('player_match_stats')
+        .select('*')
+        .eq('match_id', matchId)
+        .eq('player_id', raiderId)
+        .single();
+
+      const currentRaider = existingRaider || {
+        match_id: matchId,
+        player_id: raiderId,
+        raids_attempted: 0,
+        raid_points: 0,
+        touch_points: 0,
+        bonus_points: 0,
+        successful_raids: 0,
+        super_raids: 0,
+        tackle_points: 0,
+        successful_tackles: 0,
+        super_tackles: 0
+      };
+
+      const raidPoints = action.touchPoints + (action.bonusPoint ? 1 : 0);
+      const isSuccessfulRaid = raidPoints > 0;
+      const isSuperRaid = raidPoints >= 3;
+
+      const updatedRaider = {
+        ...currentRaider,
+        raids_attempted: (currentRaider.raids_attempted || 0) + 1,
+        raid_points: (currentRaider.raid_points || 0) + raidPoints,
+        touch_points: (currentRaider.touch_points || 0) + action.touchPoints,
+        bonus_points: (currentRaider.bonus_points || 0) + (action.bonusPoint ? 1 : 0),
+        successful_raids: (currentRaider.successful_raids || 0) + (isSuccessfulRaid ? 1 : 0),
+        super_raids: (currentRaider.super_raids || 0) + (isSuperRaid ? 1 : 0),
+      };
+
+      await supabase.from('player_match_stats').upsert(updatedRaider);
+
+      // 2. Update Tackler Stats (if applicable)
+      if (action.raiderOut && action.tacklerId) {
+        const { data: existingTackler } = await supabase
+          .from('player_match_stats')
+          .select('*')
+          .eq('match_id', matchId)
+          .eq('player_id', action.tacklerId)
+          .single();
+
+        const currentTackler = existingTackler || {
+          match_id: matchId,
+          player_id: action.tacklerId,
+          raids_attempted: 0,
+          raid_points: 0,
+          touch_points: 0,
+          bonus_points: 0,
+          successful_raids: 0,
+          super_raids: 0,
+          tackle_points: 0,
+          successful_tackles: 0,
+          super_tackles: 0
+        };
+
+        const isSuperTackle = activeDefendersCount <= 3;
+        // Points: 1 for tackle, +1 if super tackle (total 2)
+        const tacklePoints = isSuperTackle ? 2 : 1;
+
+        const updatedTackler = {
+          ...currentTackler,
+          tackle_points: (currentTackler.tackle_points || 0) + tacklePoints,
+          successful_tackles: (currentTackler.successful_tackles || 0) + 1,
+          super_tackles: (currentTackler.super_tackles || 0) + (isSuperTackle ? 1 : 0),
+        };
+
+        await supabase.from('player_match_stats').upsert(updatedTackler);
+      }
+    } catch (error) {
+      console.error("Error updating player stats:", error);
+    }
+  };
+
+  const processRaid = async (action: RaidAction, isRedo: boolean = false) => {
+    if (!match || !teamA || !teamB) return;
+
+    // === TIE-BREAKER MODE ===
+    if (isTieBreakerMode) {
+      // Calculate points for this raid
+      const raidPoints = action.touchPoints + (action.bonusPoint ? 1 : 0);
+      // In tie-breaker, raider out also gives 1 point to defending
+      const defendingPoints = action.raiderOut ? 1 : 0;
+
+      // Update tie-breaker scores
+      setTieBreakerScore(prev => ({
+        A: prev.A + (activeTeam === 'A' ? raidPoints : defendingPoints),
+        B: prev.B + (activeTeam === 'B' ? raidPoints : defendingPoints)
+      }));
+
+      // Progress to next raid
+      const nextIndex = tieBreakerRaidIndex + 1;
+      setTieBreakerRaidIndex(nextIndex);
+
+      // Reset raid state
+      setRaidState('IDLE');
+      setSelectedRaiderId(null);
+      setSelectedDefenderIds([]);
+      setPendingRaidAction(null);
+      setSelectionMode('RAIDER');
+
+      // Check if shootout complete (10 raids)
+      if (nextIndex >= 10) {
+        // Use updated scores
+        const finalA = tieBreakerScore.A + (activeTeam === 'A' ? raidPoints : defendingPoints);
+        const finalB = tieBreakerScore.B + (activeTeam === 'B' ? raidPoints : defendingPoints);
+
+        if (finalA > finalB) {
+          setTieBreakerWinner('A');
+        } else if (finalB > finalA) {
+          setTieBreakerWinner('B');
+        } else {
+          // Still tied - golden raid (simplified: toss and single raid)
+          const goldenTeam = Math.random() < 0.5 ? 'A' : 'B';
+          toast({
+            title: "⚡ Golden Raid!",
+            description: `Still tied! ${goldenTeam === 'A' ? teamA.name : teamB.name} gets the golden raid.`
+          });
+          // For now, just pick a random winner
+          setTieBreakerWinner(goldenTeam);
+        }
+        return;
+      }
+
+      // Switch teams and select next raider
+      const nextTeam = activeTeam === 'A' ? 'B' : 'A';
+      setActiveTeam(nextTeam);
+
+      // Calculate which raider is next (0-4 for each team)
+      const raidersTeamA = Math.floor(nextIndex / 2) + (tieBreakerFirstTeam === 'A' ? (nextIndex % 2 === 0 ? 0 : 0) : (nextIndex % 2 === 1 ? 0 : 0));
+      const teamRaidIndex = Math.floor(nextIndex / 2);
+      if (teamRaidIndex < 5) {
+        const nextRaiderId = nextTeam === 'A' ? tieBreakerRaiders.A[teamRaidIndex] : tieBreakerRaiders.B[teamRaidIndex];
+        if (nextRaiderId) {
+          setSelectedRaiderId(nextRaiderId);
+          setRaidState('RAIDING');
+        }
+      }
+
+      return; // Don't proceed with normal raid processing
+    }
+
+    // === NORMAL MATCH MODE ===
+    try {
+      let isDOD = (activeTeam === "A" && emptyRaidsA >= 2) || (activeTeam === "B" && emptyRaidsB >= 2);
+
+      // If DOD and empty raid -> Raider is out automatically
+      let effectiveAction = { ...action };
+      if (isDOD && action.outcome === 'success' && action.touchPoints === 0 && !action.bonusPoint) {
+        effectiveAction.outcome = 'fail';
+        effectiveAction.raiderOut = true;
+      }
+
+      let points = effectiveAction.touchPoints + (effectiveAction.bonusPoint ? 1 : 0) + (effectiveAction.raiderOut ? 1 : 0);
+      const raidingTeamId = activeTeam === "A" ? teamA.id : teamB.id;
+      const defendingPlayers = activeTeam === "A" ? playersB : playersA;
+
+      // Calculate active defenders count BEFORE applying this raid's outcome
+      // (This is critical for Super Tackle check)
+      const currentActiveDefendersCount = defendingPlayers.filter(p => !outPlayers.includes(p.id)).length;
+
+      let currentOutPlayers = [...outPlayers];
+      if (effectiveAction.raiderOut) {
+        currentOutPlayers.push(effectiveAction.raiderId);
+      } else {
+        effectiveAction.defendersOut.forEach(id => currentOutPlayers.push(id));
+      }
+
+      const defendingPlayersOut = currentOutPlayers.filter(id => defendingPlayers.some(p => p.id === id));
+      const isAllOut = defendingPlayersOut.length === defendingPlayers.length && defendingPlayers.length > 0;
+
+      // REVIVAL LOGIC
+      let revivalCount = 0;
+      let revivingTeamPlayers: Player[] = [];
+
+      if (!effectiveAction.raiderOut) {
+        // Effective Raid
+        if (effectiveAction.touchPoints > 0) {
+          revivalCount = effectiveAction.touchPoints;
+          revivingTeamPlayers = (activeTeam === "A") ? playersA : playersB; // Raiding team revives
+        }
+      } else {
+        // Raider Out / Tackle
+        revivalCount = 1;
+        revivingTeamPlayers = defendingPlayers; // Defending team revives
+      }
+
+      // 2. Apply Revival (FIFO)
+      if (isAllOut) {
+        points += 2;
+        currentOutPlayers = currentOutPlayers.filter(id => !defendingPlayers.some(p => p.id === id));
+      } else if (revivalCount > 0) {
+        let revivedCount = 0;
+        const newOutPlayers: string[] = [];
+
+        for (const outId of currentOutPlayers) {
+          const isRevivingTeam = revivingTeamPlayers.some(p => p.id === outId);
+          if (isRevivingTeam && revivedCount < revivalCount) {
+            revivedCount++;
+          } else {
+            newOutPlayers.push(outId);
+          }
+        }
+        currentOutPlayers = newOutPlayers;
+      }
+
+      const pointsToA = (activeTeam === "A" && !effectiveAction.raiderOut) ? points : (activeTeam === "B" && effectiveAction.raiderOut) ? (currentActiveDefendersCount <= 3 && effectiveAction.raiderOut ? 2 : 1) : 0;
+      const pointsToB = (activeTeam === "B" && !effectiveAction.raiderOut) ? points : (activeTeam === "A" && effectiveAction.raiderOut) ? (currentActiveDefendersCount <= 3 && effectiveAction.raiderOut ? 2 : 1) : 0;
+
+      const newScoreA = match.team_a_score + pointsToA;
+      const newScoreB = match.team_b_score + pointsToB;
+
+      setMatch(prev => prev ? { ...prev, team_a_score: newScoreA, team_b_score: newScoreB } : null);
+
+      const outPlayersSnapshot = [...outPlayers];
+      setOutPlayers(currentOutPlayers);
+
+      await (supabase as any).rpc('insert_match_event', {
         p_match_id: match.id,
-        p_event_type: eventType,
-        p_raider_id: selectedRaider,
-        p_defender_ids: selectedDefenders,
-        p_team_id: raidingTeam.id,
+        p_event_type: effectiveAction.raiderOut ? 'tackle' : 'raid',
+        p_raider_id: effectiveAction.raiderId,
+        p_defender_ids: effectiveAction.defendersOut,
+        p_team_id: raidingTeamId,
         p_points_awarded: points,
-        p_raid_time: raidTimer,
-        p_is_do_or_die: isDoOrDie,
+        p_raid_time: 30 - raidTimer,
+        p_is_do_or_die: isDOD,
         p_is_all_out: isAllOut,
         p_event_data: {
-          half: halfNumber,
+          half,
+          tacklerId: effectiveAction.tacklerId,
+          action: effectiveAction,
+          snapshot: {
+            score: { a: match.team_a_score, b: match.team_b_score },
+            outPlayers: outPlayersSnapshot
+          }
         }
       });
 
+      const nextActiveTeam = activeTeam === "A" ? "B" : "A";
+
+      await (supabase.from("matches") as any).update({
+        team_a_score: newScoreA,
+        team_b_score: newScoreB,
+        out_player_ids: currentOutPlayers,
+        active_team: nextActiveTeam,
+        current_timer: matchTimer
+      }).eq("id", match.id);
+
+      // --- DOD Tracker Update ---
+      if (activeTeam === "A") {
+        if (effectiveAction.touchPoints > 0 || effectiveAction.bonusPoint) {
+          setEmptyRaidsA(0);
+        } else if (effectiveAction.touchPoints === 0 && !effectiveAction.bonusPoint) {
+          // If raider out in DOD, it's a point to other team, so it counts as "not empty" for the count?
+          // No, DOD logic: 2 empty raids, 3rd is DOD. If DOD fail, count resets.
+          setEmptyRaidsA(prev => effectiveAction.outcome === 'fail' ? 0 : prev + 1);
+        }
+      } else {
+        if (effectiveAction.touchPoints > 0 || effectiveAction.bonusPoint) {
+          setEmptyRaidsB(0);
+        } else if (effectiveAction.touchPoints === 0 && !effectiveAction.bonusPoint) {
+          setEmptyRaidsB(prev => effectiveAction.outcome === 'fail' ? 0 : prev + 1);
+        }
+      }
+
+      if (points > 0) matchAudio.playSuccess();
+
+      const outcomeCode = effectiveAction.raiderOut ? "W" : points.toString();
+      setLastRaids(prev => [outcomeCode, ...prev].slice(0, 5));
+
+      setActiveTeam(nextActiveTeam);
+      setRaidState('IDLE');
+      setSelectedRaiderId(null);
+      setRaidTimer(30);
+      setIsRaidRunning(false);
+
+      setSelectionMode('RAIDER');
+      setSelectedDefenderIds([]);
+      setPendingRaidAction(null);
+      setIsSelectingRaider(false);
+
+      setHistory(prev => [...prev, {
+        action: action,
+        scoreSnapshot: { a: match.team_a_score, b: match.team_b_score },
+        outPlayersSnapshot: outPlayersSnapshot,
+        isAllOut: isAllOut
+      }]);
+
+      if (!isRedo) {
+        setFuture([]);
+      }
+
+      // Update Player Stats
+      await updatePlayerStats(match.id, action, action.raiderId, currentActiveDefendersCount);
+
+      // Check if we were completing a raid when timer hit 0
+      if (matchState === 'COMPLETING_RAID') {
+        setIsTimerRunning(false);
+        if (half === 1) {
+          // End of 1st half - start interval break
+          setMatchState('HALF_TIME_BREAK');
+          setIntervalTimer(settings.intervalDuration);
+          matchAudio.playBuzzer();
+        } else {
+          // End of 2nd half - match over
+          setMatchState('MATCH_ENDED');
+          matchAudio.playBuzzer();
+        }
+      }
+
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error submitting raid", description: error.message });
+    }
+  };
+
+  const handleEndMatch = async () => {
+    if (!match) return;
+    if (!window.confirm("Are you sure you want to end this match?")) return;
+    try {
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          status: 'completed',
+          ended_at: new Date().toISOString(),
+          is_timer_running: false
+        })
+        .eq("id", match.id);
       if (error) throw error;
 
-      // Fetch the newly created event
-      const { data, error: fetchError } = await supabase
-        .from("match_events")
-        .select()
-        .eq("id", eventId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const newScore = activeTeam === "A" 
-        ? match.team_a_score + points 
-        : match.team_b_score + points;
-
-      await supabase
-        .from("matches")
-        .update(
-          activeTeam === "A" 
-            ? { team_a_score: newScore }
-            : { team_b_score: newScore }
-        )
-        .eq("id", match.id);
-
-      setMatch(prev => prev ? {
-        ...prev,
-        team_a_score: activeTeam === "A" ? newScore : prev.team_a_score,
-        team_b_score: activeTeam === "B" ? newScore : prev.team_b_score,
-      } : null);
-
-      setEvents(prev => [...prev, data]);
-      recalculateStats([...events, data]);
-      
-      if (points === 0) {
-        setConsecutiveZeroRaids(prev => prev + 1);
-      } else {
-        setConsecutiveZeroRaids(0);
+      // Advance winner in bracket if applicable
+      const winnerId = (match.team_a_score ?? 0) > (match.team_b_score ?? 0) ? match.team_a_id : match.team_b_id;
+      if (match.team_a_score !== match.team_b_score) {
+        await handleWinnerAdvancement(winnerId);
       }
 
-      if (eventType === "raid" || eventType === "tackle") {
-        setRaidCount(prev => prev + 1);
-      }
-
-      resetRaid();
-      setUndoneEvents([]);
-
-      toast({
-        title: "Point Recorded",
-        description: `${points} point${points !== 1 ? 's' : ''} added to ${raidingTeam.name}`,
-      });
+      navigate(`/match-summary/${match.id}`);
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error recording event",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Error ending match", description: error.message });
+    }
+  };
+
+  const handleWinnerAdvancement = async (winnerId: string) => {
+    if (!match?.next_match_id) return;
+
+    try {
+      const updateField = match.is_team_a_winner_slot ? 'team_a_id' : 'team_b_id';
+      const { error } = await supabase
+        .from("matches")
+        .update({ [updateField]: winnerId })
+        .eq("id", match.next_match_id);
+
+      if (error) console.error("Error advancing winner:", error);
+    } catch (e) {
+      console.error("Progression error:", e);
     }
   };
 
   const handleUndo = async () => {
-    if (events.length === 0) return;
-    
-    const lastEvent = events[events.length - 1];
-    
+    if (history.length === 0) return;
+    const lastAction = history[history.length - 1];
+    const newHistory = history.slice(0, history.length - 1);
+
+    setMatch(prev => prev ? {
+      ...prev,
+      team_a_score: lastAction.scoreSnapshot.a,
+      team_b_score: lastAction.scoreSnapshot.b
+    } : null);
+
     try {
-      await supabase
+      const { data: lastEvent } = await supabase
         .from("match_events")
-        .delete()
-        .eq("id", lastEvent.id);
+        .select("id")
+        .eq("match_id", match!.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (lastEvent) {
+        await supabase.from("match_events").delete().eq("id", lastEvent.id);
+      }
 
-      const newScore = lastEvent.team_id === match?.team_a_id
-        ? match.team_a_score - lastEvent.points_awarded
-        : match.team_b_score - lastEvent.points_awarded;
+      const prevActiveTeam = activeTeam === "A" ? "B" : "A";
 
-      await supabase
-        .from("matches")
-        .update(
-          lastEvent.team_id === match?.team_a_id
-            ? { team_a_score: newScore }
-            : { team_b_score: newScore }
-        )
-        .eq("id", match!.id);
+      await (supabase.from("matches") as any).update({
+        team_a_score: lastAction.scoreSnapshot.a,
+        team_b_score: lastAction.scoreSnapshot.b,
+        out_player_ids: lastAction.outPlayersSnapshot,
+        active_team: prevActiveTeam
+      }).eq("id", match!.id);
 
-      setMatch(prev => prev ? {
-        ...prev,
-        team_a_score: lastEvent.team_id === match?.team_a_id ? newScore : prev.team_a_score,
-        team_b_score: lastEvent.team_id === match?.team_b_id ? newScore : prev.team_b_score,
-      } : null);
+      setHistory(newHistory);
+      setFuture(prev => [lastAction, ...prev]);
 
-      const newEvents = events.slice(0, -1);
-      setEvents(newEvents);
-      setUndoneEvents([...undoneEvents, lastEvent]);
-      recalculateStats(newEvents);
+      setLastRaids(prev => prev.slice(1));
+      setActiveTeam(prevActiveTeam);
+      setOutPlayers(lastAction.outPlayersSnapshot);
+      // Removed toast
 
-      toast({ title: "Action undone" });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error undoing action",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Error undoing", description: error.message });
     }
   };
 
   const handleRedo = async () => {
-    if (undoneEvents.length === 0 || !match) return;
-    
-    const eventToRedo = undoneEvents[undoneEvents.length - 1];
-    
-    try {
-      const { data, error } = await supabase
-        .from("match_events")
-        .insert({
-          match_id: match.id,
-          event_type: eventToRedo.event_type,
-          raider_id: eventToRedo.raider_id,
-          team_id: eventToRedo.team_id,
-          points_awarded: eventToRedo.points_awarded,
-          raid_time: eventToRedo.raid_time,
-          is_do_or_die: eventToRedo.is_do_or_die,
-          is_all_out: eventToRedo.is_all_out,
-        })
-        .select()
-        .single();
+    if (future.length === 0) return;
 
-      if (error) throw error;
+    const nextAction = future[0];
+    const newFuture = future.slice(1);
+    setFuture(newFuture);
 
-      const newScore = eventToRedo.team_id === match.team_a_id
-        ? match.team_a_score + eventToRedo.points_awarded
-        : match.team_b_score + eventToRedo.points_awarded;
+    await processRaid(nextAction.action, true);
 
-      await supabase
-        .from("matches")
-        .update(
-          eventToRedo.team_id === match.team_a_id
-            ? { team_a_score: newScore }
-            : { team_b_score: newScore }
-        )
-        .eq("id", match.id);
-
-      setMatch(prev => prev ? {
-        ...prev,
-        team_a_score: eventToRedo.team_id === match.team_a_id ? newScore : prev.team_a_score,
-        team_b_score: eventToRedo.team_id === match.team_b_id ? newScore : prev.team_b_score,
-      } : null);
-
-      const newEvents = [...events, data];
-      setEvents(newEvents);
-      setUndoneEvents(undoneEvents.slice(0, -1));
-      recalculateStats(newEvents);
-
-      toast({ title: "Action redone" });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error redoing action",
-        description: error.message,
-      });
-    }
-  };
-
-  const resetRaid = () => {
-    setRaidTimer(0);
-    setIsRaidRunning(false);
-    setSelectedRaider(null);
-    setSelectedDefenders([]);
+    // Removed toast
   };
 
   const handleStopRaid = () => {
+    setRaidState('IDLE');
+    setSelectedRaiderId(null);
     setIsRaidRunning(false);
-    setRaidTimer(0);
-    toast({ title: "Raid stopped" });
+    setRaidTimer(30);
+    setSelectionMode('RAIDER');
+    setSelectedDefenderIds([]);
+    setPendingRaidAction(null);
+    setIsSelectingRaider(false);
   };
 
   const handleNextRaid = () => {
-    setActiveTeam(prev => prev === "A" ? "B" : "A");
-    resetRaid();
-    setShowPlayerSelectDialog(true);
-  };
-
-  const handlePlayerSelect = (playerId: string) => {
-    setSelectedRaider(playerId);
-    setShowPlayerSelectDialog(false);
-    setRaidTimer(30);
+    if (raidState !== 'IDLE') return;
+    setIsSelectingRaider(true);
+    setRaidState('RAIDING');
+    setRaidTimer(settings.raidDuration);
     setIsRaidRunning(true);
-  };
 
-  const handleNextHalf = () => {
-    setHalfNumber(prev => prev + 1);
-    setMatchTimer(0);
-    setRaidCount(0);
-    resetRaid();
-    toast({ title: `Starting ${halfNumber + 1}${halfNumber === 1 ? 'nd' : 'rd'} Half` });
-  };
-
-  const togglePlayerOut = (playerId: string, team: "A" | "B") => {
-    if (team === "A") {
-      setOutPlayersA(prev => 
-        prev.includes(playerId) 
-          ? prev.filter(id => id !== playerId)
-          : [...prev, playerId]
-      );
+    const isDOD = (activeTeam === "A" && emptyRaidsA >= 2) || (activeTeam === "B" && emptyRaidsB >= 2);
+    if (isDOD) {
+      matchAudio.playDODBuzzer();
     } else {
-      setOutPlayersB(prev => 
-        prev.includes(playerId) 
-          ? prev.filter(id => id !== playerId)
-          : [...prev, playerId]
-      );
+      matchAudio.playRaidStart();
     }
   };
 
-  const handleAllOut = async () => {
-    await recordEvent("all_out", 2, false, true);
-    
-    if (activeTeam === "A") {
-      setOutPlayersB([]);
-    } else {
-      setOutPlayersA([]);
-    }
-  };
+  if (!match || !teamA || !teamB) return <div className="h-screen bg-slate-950 flex items-center justify-center text-white">Loading...</div>;
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Helper: Active Defenders Count
+  const activeDefendersA = playersA.filter(p => !outPlayers.includes(p.id)).length;
+  const activeDefendersB = playersB.filter(p => !outPlayers.includes(p.id)).length;
 
-  if (!match || !teamA || !teamB) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // Super Tackle On? (3 or less)
+  const isSuperTackleOnA = activeDefendersA <= 3;
+  const isSuperTackleOnB = activeDefendersB <= 3;
 
-  const isDoOrDieActive = consecutiveZeroRaids >= 2;
-  const raidingPlayers = activeTeam === "A" ? playersA : playersB;
-  const defendingPlayers = activeTeam === "A" ? playersB : playersA;
-  const outPlayers = activeTeam === "A" ? outPlayersB : outPlayersA;
+  // Check if match ended in a tie
+  const isMatchTied = match.team_a_score === match.team_b_score;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white overflow-x-hidden">
-      {/* Top Header Bar - Fixed */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 px-6 py-3 shadow-2xl sticky top-0 z-50">
-        <div className="flex items-center justify-between max-w-[1920px] mx-auto">
-          {/* Left Section */}
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(-1)}
-              className="text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
+    <div className="h-screen w-screen bg-slate-950 flex flex-col overflow-hidden text-white font-rajdhani live-scoring-container landscape:overflow-y-auto landscape:gap-0 transition-all duration-500">
+      {/* Match Summary Overlay */}
+      {matchState === 'MATCH_ENDED' && !isTieBreakerMode && (
+        <div className="fixed inset-0 bg-gradient-to-br from-slate-900/98 via-slate-950 to-slate-900/98 z-50 flex flex-col items-center justify-center p-4">
+          <h1 className="text-3xl font-bold text-amber-400 mb-4">🏁 Match Complete</h1>
+
+          {/* Final Scores */}
+          <div className="flex items-center gap-8 mb-6">
+            <div className="text-center">
+              <div className="text-sm text-red-400 font-bold">{teamA.name}</div>
+              <div className="text-5xl font-bold text-red-500">{match.team_a_score}</div>
+            </div>
+            <div className="text-2xl text-slate-500">-</div>
+            <div className="text-center">
+              <div className="text-sm text-blue-400 font-bold">{teamB.name}</div>
+              <div className="text-5xl font-bold text-blue-500">{match.team_b_score}</div>
+            </div>
           </div>
 
-          {/* Center Section */}
-          <div className="flex items-center gap-6">
-            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500 text-sm px-4 py-1">
-              {halfNumber === 1 ? "1st Half" : halfNumber === 2 ? "2nd Half" : `${halfNumber}rd Half`}
-            </Badge>
-            
-            <div className="flex items-center gap-3 bg-slate-800/50 backdrop-blur px-6 py-2 rounded-lg border border-slate-700">
-              <Clock className="h-5 w-5 text-yellow-400" />
-              <span className="font-mono text-2xl font-bold tracking-wider text-yellow-400">
-                {formatTime(matchTimer)}
-              </span>
+          {/* Winner or Tie */}
+          {isMatchTied ? (
+            <div className="text-center mb-6">
+              <div className="text-xl text-amber-400 mb-2">🤝 Match Tied!</div>
+              <p className="text-sm text-slate-400 mb-4">Proceed to tie-breaker shootout to determine winner</p>
               <Button
-                size="sm"
-                variant={isMatchRunning ? "destructive" : "default"}
-                onClick={() => setIsMatchRunning(!isMatchRunning)}
-                className="ml-2"
+                onClick={() => setShowTieBreakerSetup(true)}
+                className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 text-lg"
               >
-                {isMatchRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                🎯 Start Shootout
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center mb-6">
+              <div className={cn(
+                "text-2xl font-bold",
+                match.team_a_score > match.team_b_score ? "text-red-400" : "text-blue-400"
+              )}>
+                🏆 {match.team_a_score > match.team_b_score ? teamA.name : teamB.name} Wins!
+              </div>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            onClick={() => navigate('/matches')}
+            className="border-slate-600 text-slate-300"
+          >
+            Back to Matches
+          </Button>
+        </div>
+      )}
+
+      {/* Tie-Breaker Winner Overlay */}
+      {tieBreakerWinner && (
+        <div className="fixed inset-0 bg-gradient-to-br from-amber-900/95 via-slate-950 to-amber-900/95 z-50 flex flex-col items-center justify-center p-4">
+          <h1 className="text-3xl font-bold text-amber-400 mb-2">🏆 Tie-Breaker Winner!</h1>
+          <div className={cn(
+            "text-4xl font-bold mb-4",
+            tieBreakerWinner === 'A' ? "text-red-400" : "text-blue-400"
+          )}>
+            {tieBreakerWinner === 'A' ? teamA.name : teamB.name}
+          </div>
+          <div className="text-lg text-slate-300 mb-6">
+            Shootout Score: {tieBreakerScore.A} - {tieBreakerScore.B}
+          </div>
+          <Button
+            onClick={() => {
+              setTieBreakerWinner(null);
+              setIsTieBreakerMode(false);
+
+              const winnerId = tieBreakerWinner === 'A' ? match.team_a_id : match.team_b_id;
+              handleWinnerAdvancement(winnerId).then(() => {
+                navigate('/matches');
+              });
+            }}
+            className="bg-amber-600 hover:bg-amber-500"
+          >
+            Finish Match
+          </Button>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media (orientation: landscape) and (max-height: 500px) {
+          .live-scoring-container {
+            font-size: 0.9em;
+          }
+        }
+      `}} />
+      <TopHeader
+        timer={matchTimer}
+        isTimerRunning={isTimerRunning && !isMatchPaused}
+        half={half}
+        onOpenSettings={() => setShowSettings(true)}
+        onOfficialTimeout={handleOfficialTimeout}
+        onResumeMatch={handleResumeMatch}
+        isMatchPaused={isMatchPaused}
+        activeTimeout={activeTimeout}
+        timeoutTimer={timeoutTimer}
+        teamAName={teamA?.name}
+        teamBName={teamB?.name}
+      />
+
+      <Scoreboard
+        teamA={teamA}
+        teamB={teamB}
+        scoreA={match.team_a_score}
+        scoreB={match.team_b_score}
+        activeTeam={activeTeam}
+        lastRaids={lastRaids}
+        isSuperTackleOnA={isSuperTackleOnA}
+        isSuperTackleOnB={isSuperTackleOnB}
+        emptyRaidsA={emptyRaidsA}
+        emptyRaidsB={emptyRaidsB}
+      />
+
+      <PlayersArea
+        playersA={playersA}
+        playersB={playersB}
+        activeTeam={activeTeam}
+        selectedRaiderId={selectedRaiderId}
+        outPlayers={outPlayers}
+        raidTimer={raidTimer}
+        isRaidRunning={isRaidRunning}
+        onSelectRaider={handleSelectRaider}
+        selectionMode={selectionMode}
+        selectedDefenderIds={selectedDefenderIds}
+        onSelectDefender={handleSelectDefender}
+        showFocusOverlay={isSelectingRaider || selectionMode === 'DEFENDER'}
+        isSelecting={isSelectingRaider}
+        onOpenSubstitution={handleOpenSubstitution}
+        emptyRaidsA={emptyRaidsA}
+        emptyRaidsB={emptyRaidsB}
+      />
+
+      <SplitScoringPanel
+        activeTeam={activeTeam}
+        teamAName={teamA?.name || "Team A"}
+        teamBName={teamB?.name || "Team B"}
+        onRecordOutcome={handleRecordOutcome}
+        selectedRaiderId={selectedRaiderId}
+        onToggleTimeout={handleToggleTimeout}
+        emptyRaidsA={emptyRaidsA}
+        emptyRaidsB={emptyRaidsB}
+        timeoutsA={timeoutsA}
+        timeoutsB={timeoutsB}
+        isMatchPaused={isMatchPaused}
+        maxTimeouts={settings.maxTimeouts}
+        combinedMode={showManualPoints}
+      />
+
+      <BottomControls
+        raidState={raidState}
+        canUndo={history.length > 0}
+        canRedo={future.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onStopRaid={handleStopRaid}
+        hasMatchStarted={hasMatchStarted}
+        onStartMatch={handleStartMatch}
+        onNextRaid={handleNextRaid}
+        onTechnicalPoint={handleTechnicalPoint}
+        onManualPoints={() => setShowManualPoints(!showManualPoints)}
+        combinedMode={showManualPoints}
+      />
+
+      {/* Tie-Breaker Setup Dialog */}
+      <TieBreakerSetupDialog
+        open={showTieBreakerSetup}
+        onOpenChange={setShowTieBreakerSetup}
+        teamAName={teamA?.name || "Team A"}
+        teamBName={teamB?.name || "Team B"}
+        playersA={playersA}
+        playersB={playersB}
+        onComplete={(setup) => {
+          // Start tie-breaker mode
+          setIsTieBreakerMode(true);
+          setTieBreakerRaiders({ A: setup.raidersA, B: setup.raidersB });
+          setTieBreakerFirstTeam(setup.firstRaidingTeam);
+          setActiveTeam(setup.firstRaidingTeam);
+          setTieBreakerScore({ A: 0, B: 0 });
+          setTieBreakerRaidIndex(0);
+          setMatchState('LIVE_HALF_2'); // Use LIVE_HALF_2 for tie-breaker (no half concept)
+          setShowTieBreakerSetup(false);
+          // Auto-select first raider
+          const firstRaiderId = setup.firstRaidingTeam === 'A' ? setup.raidersA[0] : setup.raidersB[0];
+          setSelectedRaiderId(firstRaiderId);
+          toast({
+            title: "🎯 Tie-Breaker Started!",
+            description: `${setup.firstRaidingTeam === 'A' ? teamA?.name : teamB?.name} will raid first.`
+          });
+        }}
+      />
+
+      <SubstitutionDialog
+        isOpen={substitutionOpen}
+        onClose={() => setSubstitutionOpen(false)}
+        teamName={substitutionTeam === "A" ? teamA.name : teamB.name}
+        activePlayers={(substitutionTeam === "A" ? playersA : playersB).slice(0, 7)}
+        benchPlayers={(substitutionTeam === "A" ? playersA : playersB).slice(7)}
+        onConfirm={handleConfirmSubstitution}
+      />
+
+      {match && (
+        <MatchStartDialog
+          matchId={match.id}
+          teamAId={match.team_a_id}
+          teamBId={match.team_b_id}
+          teamAName={teamA.name}
+          teamBName={teamB.name}
+          playersA={playersA}
+          playersB={playersB}
+          open={showSetup}
+          onOpenChange={setShowSetup}
+          onComplete={onSetupComplete}
+        />
+      )}
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-blue-400" />
+              Match Settings
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base">Mute Match Audio</Label>
+                <p className="text-sm text-slate-400">Silence all buzzer and tick sounds</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4 text-green-400" />}
+                <Switch
+                  checked={isMuted}
+                  onCheckedChange={setIsMuted}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-base">Timeout Rules</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="timeoutDuration" className="text-xs text-slate-400">Duration (seconds)</Label>
+                  <Input
+                    id="timeoutDuration"
+                    type="number"
+                    value={settings.timeoutDuration}
+                    onChange={(e) => setSettings(prev => ({ ...prev, timeoutDuration: parseInt(e.target.value) || 0 }))}
+                    className="bg-slate-800 border-slate-700"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxTimeouts" className="text-xs text-slate-400">Max per Half</Label>
+                  <Input
+                    id="maxTimeouts"
+                    type="number"
+                    value={settings.maxTimeouts}
+                    onChange={(e) => setSettings(prev => ({ ...prev, maxTimeouts: parseInt(e.target.value) || 0 }))}
+                    className="bg-slate-800 border-slate-700"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="raidDuration" className="text-base">Raid Duration (seconds)</Label>
+              <Input
+                id="raidDuration"
+                type="number"
+                value={settings.raidDuration}
+                onChange={(e) => setSettings(prev => ({ ...prev, raidDuration: parseInt(e.target.value) || 0 }))}
+                className="bg-slate-800 border-slate-700"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="halfDuration" className="text-base">Half Duration (seconds)</Label>
+              <Input
+                id="halfDuration"
+                type="number"
+                value={settings.halfDuration}
+                onChange={(e) => setSettings(prev => ({ ...prev, halfDuration: parseInt(e.target.value) || 0 }))}
+                className="bg-slate-800 border-slate-700"
+              />
+              <p className="text-xs text-slate-500">Default: 1200 (20 minutes)</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="intervalDuration" className="text-base">Half-Time Break (seconds)</Label>
+              <Input
+                id="intervalDuration"
+                type="number"
+                value={settings.intervalDuration}
+                onChange={(e) => setSettings(prev => ({ ...prev, intervalDuration: parseInt(e.target.value) || 0 }))}
+                className="bg-slate-800 border-slate-700"
+              />
+              <p className="text-xs text-slate-500">Default: 300 (5 minutes)</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setShowSettings(false)} className="w-full bg-blue-600 hover:bg-blue-700">
+              Save & Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Half-Time Break Overlay - Landscape Responsive */}
+      {matchState === 'HALF_TIME_BREAK' && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-sm flex items-center justify-center p-4 overflow-auto">
+          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 w-full max-w-4xl">
+            {/* Left: Header and Timer */}
+            <div className="flex flex-col items-center gap-2 lg:w-1/3">
+              <div className="h-16 w-16 lg:h-20 lg:w-20 rounded-full bg-orange-500/20 border-4 border-orange-500 flex items-center justify-center">
+                <span className="text-2xl lg:text-3xl font-black text-orange-500">HT</span>
+              </div>
+              <h1 className="text-2xl lg:text-3xl font-black text-white uppercase tracking-wider">
+                Half Time
+              </h1>
+              {intervalTimer > 0 ? (
+                <>
+                  <p className="text-sm lg:text-lg text-slate-400">Break ends in</p>
+                  <div className="text-4xl lg:text-5xl font-mono font-black text-orange-500">
+                    {Math.floor(intervalTimer / 60)}:{(intervalTimer % 60).toString().padStart(2, '0')}
+                  </div>
+                </>
+              ) : (
+                <p className="text-lg text-green-400">Ready to start!</p>
+              )}
+
+              {/* Start Button */}
+              <Button
+                onClick={handleStart2ndHalf}
+                className="h-12 lg:h-14 px-6 lg:px-8 text-lg lg:text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-[0_0_30px_rgba(22,163,74,0.4)] transition-all hover:scale-105 mt-2"
+              >
+                🏃 Start 2nd Half
               </Button>
             </div>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleNextHalf}
-              className="border-slate-600 hover:bg-slate-800"
-            >
-              Next Half
-            </Button>
+            {/* Right: Stats */}
+            <div className="flex flex-col gap-4 lg:w-2/3">
+              {/* 1st Half Stats */}
+              <div className="bg-slate-800/50 rounded-xl p-3 lg:p-4">
+                <h2 className="text-base lg:text-lg font-bold text-slate-300 text-center mb-2">1st Half Stats</h2>
+                <div className="grid grid-cols-3 gap-2 text-center text-sm lg:text-base">
+                  <div className="text-red-400 font-bold">{teamA?.name}</div>
+                  <div className="text-slate-500">Stat</div>
+                  <div className="text-blue-400 font-bold">{teamB?.name}</div>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => navigate(`/matches`)}
-              className="gap-2 border-red-600 text-red-400 hover:bg-red-950"
-            >
-              <Flag className="h-4 w-4" />
-              End Match
-            </Button>
-          </div>
+                  <div className="text-xl lg:text-2xl font-black text-red-500">{halfStats.half1.scoreA}</div>
+                  <div className="text-slate-500">Score</div>
+                  <div className="text-xl lg:text-2xl font-black text-blue-500">{halfStats.half1.scoreB}</div>
 
-          {/* Right Section */}
-          <Badge className={`${isMatchRunning ? 'bg-green-500/20 text-green-400 border-green-500 animate-pulse' : 'bg-slate-700/20 text-slate-400 border-slate-600'} text-sm px-4 py-1`}>
-            {isMatchRunning ? "● LIVE" : "PAUSED"}
-          </Badge>
-        </div>
-      </div>
-
-      {/* Scoreboard Section */}
-      <div className="px-6 py-6 border-b border-slate-800">
-        <div className="max-w-[1920px] mx-auto grid grid-cols-5 gap-8 items-center">
-          {/* Team A */}
-          <div className="col-span-2 text-right">
-            <div className="text-xl font-bold text-red-400 mb-2">{teamA.name}</div>
-            <div className="text-7xl font-mono font-bold text-red-500 tracking-wider drop-shadow-[0_0_20px_rgba(239,68,68,0.5)]">
-              {match.team_a_score.toString().padStart(2, '0')}
-            </div>
-          </div>
-
-          {/* VS */}
-          <div className="col-span-1 text-center">
-            <div className="text-4xl font-bold text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]">
-              VS
-            </div>
-            <div className="text-xs text-slate-500 mt-2">
-              Raid #{raidCount}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              {activeTeam === "A" ? teamA.name : teamB.name} Raid
-            </div>
-          </div>
-
-          {/* Team B */}
-          <div className="col-span-2 text-left">
-            <div className="text-xl font-bold text-blue-400 mb-2">{teamB.name}</div>
-            <div className="text-7xl font-mono font-bold text-blue-500 tracking-wider drop-shadow-[0_0_20px_rgba(59,130,246,0.5)]">
-              {match.team_b_score.toString().padStart(2, '0')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Players & Timer Section */}
-      <div className="px-6 py-6 border-b border-slate-800 bg-slate-900/30">
-        <div className="max-w-[1920px] mx-auto grid grid-cols-12 gap-6 items-center">
-          {/* Team A Players */}
-          <div className="col-span-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1 w-12 bg-red-500 rounded"></div>
-              <span className="text-sm font-semibold text-red-400">Team A Players</span>
-            </div>
-            <div className="grid grid-cols-8 gap-2">
-              {playersA.slice(0, 8).map((player) => {
-                const isOut = outPlayersA.includes(player.id);
-                const isActive = selectedRaider === player.id && activeTeam === "A";
-                return (
-                  <button
-                    key={player.id}
-                    onClick={() => activeTeam === "A" && setSelectedRaider(player.id === selectedRaider ? null : player.id)}
-                    className={`
-                      aspect-square rounded-lg border-2 flex flex-col items-center justify-center
-                      transition-all duration-300
-                      ${isActive
-                        ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-500/50 scale-110 ring-4 ring-red-500/30 animate-pulse'
-                        : isOut
-                        ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40'
-                        : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-red-400 hover:scale-105'
-                      }
-                    `}
-                  >
-                    <div className="text-lg font-bold">
-                      {player.jersey_number || '?'}
-                    </div>
-                    <div className="text-[7px] truncate w-full text-center px-1">
-                      {player.name.split(' ')[0]}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Raid Timer (Center) */}
-          <div className="col-span-2">
-            <div className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-6 border-2 border-yellow-500/30 shadow-2xl">
-              <div className="text-center mb-3">
-                <div className="text-xs text-yellow-400 mb-2">RAID TIMER</div>
-                <div className={`font-mono text-5xl font-bold tracking-wider ${raidTimer > 20 ? 'text-red-500 animate-pulse' : 'text-yellow-400'} drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]`}>
-                  {(30 - raidTimer).toString().padStart(2, '0')}
+                  <div className="text-base lg:text-lg text-red-400">{halfStats.half1.raidsA}</div>
+                  <div className="text-slate-500">Raids</div>
+                  <div className="text-base lg:text-lg text-blue-400">{halfStats.half1.raidsB}</div>
                 </div>
               </div>
-              <div className="flex gap-2 justify-center mt-4">
-                <Button
-                  size="sm"
-                  variant={isRaidRunning ? "destructive" : "default"}
-                  onClick={() => setIsRaidRunning(!isRaidRunning)}
-                  className="bg-yellow-600 hover:bg-yellow-700"
-                >
-                  {isRaidRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setRaidTimer(0)}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
+
+              {/* Score Display */}
+              <div className="flex items-center justify-center gap-4 text-xl lg:text-2xl font-bold">
+                <span className="text-red-400">{teamA?.name}: {match?.team_a_score}</span>
+                <span className="text-slate-600">vs</span>
+                <span className="text-blue-400">{teamB?.name}: {match?.team_b_score}</span>
               </div>
-            </div>
-          </div>
 
-          {/* Team B Players */}
-          <div className="col-span-5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-1 w-12 bg-blue-500 rounded"></div>
-              <span className="text-sm font-semibold text-blue-400">Team B Players</span>
+              <p className="text-slate-400 text-sm text-center">
+                🏃 {firstRaidingTeam === 'A' ? teamB?.name : teamA?.name} starts 2nd half raiding
+              </p>
             </div>
-            <div className="grid grid-cols-8 gap-2">
-              {playersB.slice(0, 8).map((player) => {
-                const isOut = outPlayersB.includes(player.id);
-                const isActive = selectedRaider === player.id && activeTeam === "B";
-                return (
-                  <button
-                    key={player.id}
-                    onClick={() => activeTeam === "B" && setSelectedRaider(player.id === selectedRaider ? null : player.id)}
-                    className={`
-                      aspect-square rounded-lg border-2 flex flex-col items-center justify-center
-                      transition-all duration-300
-                      ${isActive
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/50 scale-110 ring-4 ring-blue-500/30 animate-pulse'
-                        : isOut
-                        ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40'
-                        : 'bg-slate-800 border-slate-600 text-slate-300 hover:border-blue-400 hover:scale-105'
-                      }
-                    `}
-                  >
-                    <div className="text-lg font-bold">
-                      {player.jersey_number || '?'}
-                    </div>
-                    <div className="text-[7px] truncate w-full text-center px-1">
-                      {player.name.split(' ')[0]}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Do or Die Warning */}
-      {isDoOrDieActive && (
-        <div className="px-6 py-3 bg-orange-500/20 border-y border-orange-500 animate-pulse">
-          <div className="text-center font-bold text-orange-400 text-lg">
-            ⚠️ DO OR DIE RAID ⚠️
           </div>
         </div>
       )}
 
-      {/* Scoring Section - Dynamic Based on Raiding Team */}
-      <div className="px-6 py-6">
-        <div className="max-w-[1920px] mx-auto">
-          {/* Raider Section */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`h-2 w-16 ${activeTeam === "A" ? 'bg-red-500' : 'bg-blue-500'} rounded`}></div>
-              <h3 className={`text-lg font-bold ${activeTeam === "A" ? 'text-red-400' : 'text-blue-400'}`}>
-                RAIDER SECTION - {activeTeam === "A" ? teamA.name : teamB.name}
-              </h3>
+      {/* Match Ended Overlay */}
+      {matchState === 'MATCH_ENDED' && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-sm flex flex-col items-center justify-center gap-4 p-4 overflow-auto">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-20 w-20 rounded-full bg-green-500/20 border-4 border-green-500 flex items-center justify-center">
+              <svg className="h-10 w-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-            
-            <div className="flex gap-3 flex-wrap">
-              <Button
-                onClick={() => recordEvent("raid", 0, isDoOrDieActive)}
-                className="h-16 px-8 flex items-center gap-3 bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600"
-              >
-                <div className="text-3xl font-bold">0</div>
-                <div className="text-sm">Empty</div>
-              </Button>
+            <h1 className="text-3xl font-black text-white uppercase tracking-wider mt-2">
+              Full Time
+            </h1>
+          </div>
 
-              <Button
-                onClick={() => recordEvent("raid", 1, isDoOrDieActive)}
-                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
-              >
-                <div className="text-3xl font-bold">1</div>
-                <div className="text-sm">Point</div>
-              </Button>
-
-              <Button
-                onClick={() => recordEvent("raid", 2, isDoOrDieActive)}
-                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
-              >
-                <div className="text-3xl font-bold">2</div>
-                <div className="text-sm">Points</div>
-              </Button>
-
-              <Button
-                onClick={() => recordEvent("raid", 3, isDoOrDieActive)}
-                className="h-16 px-8 flex items-center gap-3 bg-green-600 hover:bg-green-700 text-white border-2 border-green-500"
-              >
-                <div className="text-3xl font-bold">3</div>
-                <div className="text-sm">Points</div>
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-16 px-8 flex items-center gap-3 bg-orange-600 hover:bg-orange-700 text-white border-2 border-orange-500">
-                    <div className="text-3xl font-bold">B</div>
-                    <div className="text-sm">Bonus</div>
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-slate-900 border-slate-700">
-                  {[1, 2, 3, 4, 5, 6, 7].map((bonus) => (
-                    <DropdownMenuItem
-                      key={bonus}
-                      onClick={() => recordEvent("bonus", bonus)}
-                      className="text-white hover:bg-orange-600 cursor-pointer"
-                    >
-                      Bonus +{bonus}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <Button
-                onClick={() => recordEvent("raid", 0, isDoOrDieActive)}
-                className="h-16 px-8 flex items-center gap-3 bg-red-600 hover:bg-red-700 text-white border-2 border-red-500"
-              >
-                <div className="text-sm">Out of Bound</div>
-              </Button>
-
-              <Button
-                onClick={() => toast({ title: "Timeout called" })}
-                className="h-16 px-8 flex items-center gap-3 bg-blue-700 hover:bg-blue-800 text-white border-2 border-blue-600"
-              >
-                <div className="text-sm">Timeout</div>
-              </Button>
+          {/* Final Score */}
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-xl text-red-400 font-bold">{teamA?.name}</p>
+              <p className="text-6xl font-mono font-black text-red-500">{match?.team_a_score}</p>
+            </div>
+            <span className="text-3xl text-slate-600">-</span>
+            <div className="text-center">
+              <p className="text-xl text-blue-400 font-bold">{teamB?.name}</p>
+              <p className="text-6xl font-mono font-black text-blue-500">{match?.team_b_score}</p>
             </div>
           </div>
 
-          {/* Defense Section */}
-          <div className="mt-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`h-2 w-16 ${activeTeam === "A" ? 'bg-blue-500' : 'bg-red-500'} rounded`}></div>
-              <h3 className={`text-lg font-bold ${activeTeam === "A" ? 'text-blue-400' : 'text-red-400'}`}>
-                DEFENSE SECTION - {activeTeam === "A" ? teamB.name : teamA.name}
-              </h3>
-            </div>
-            
-            <div className="flex gap-3 flex-wrap">
-              <Button
-                onClick={() => recordEvent("tackle", 1)}
-                className="h-16 px-8 flex items-center gap-3 bg-purple-600 hover:bg-purple-700 text-white border-2 border-purple-500"
-              >
-                <div className="text-sm">Tackle (+1)</div>
-              </Button>
+          {(match?.team_a_score ?? 0) > (match?.team_b_score ?? 0) ? (
+            <p className="text-2xl text-green-400 font-bold">🏆 {teamA?.name} Wins!</p>
+          ) : (match?.team_a_score ?? 0) < (match?.team_b_score ?? 0) ? (
+            <p className="text-2xl text-green-400 font-bold">🏆 {teamB?.name} Wins!</p>
+          ) : (
+            <p className="text-2xl text-yellow-400 font-bold">🤝 Match Draw!</p>
+          )}
 
-              <Button
-                onClick={() => recordEvent("tackle", 2)}
-                className="h-16 px-8 flex items-center gap-3 bg-purple-700 hover:bg-purple-800 text-white border-2 border-purple-600"
-              >
-                <div className="text-sm">Super Tackle (+2)</div>
-              </Button>
+          {/* Match Stats by Half */}
+          <div className="bg-slate-800/50 rounded-xl p-4 w-full max-w-md">
+            <h2 className="text-lg font-bold text-slate-300 text-center mb-3">Match Statistics</h2>
+            <div className="grid grid-cols-4 gap-2 text-center text-sm">
+              <div className="text-slate-500 font-bold">Half</div>
+              <div className="text-red-400 font-bold">{teamA?.name}</div>
+              <div className="text-blue-400 font-bold">{teamB?.name}</div>
+              <div className="text-slate-500 font-bold">Diff</div>
 
-              <Button
-                onClick={() => recordEvent("tackle", 1)}
-                className="h-16 px-8 flex items-center gap-3 bg-red-600 hover:bg-red-700 text-white border-2 border-red-500"
-              >
-                <div className="text-sm">Defender Out of Bound</div>
-              </Button>
+              <div className="text-slate-400">1st</div>
+              <div className="text-red-400">{halfStats.half1.scoreA}</div>
+              <div className="text-blue-400">{halfStats.half1.scoreB}</div>
+              <div className={halfStats.half1.scoreA > halfStats.half1.scoreB ? 'text-red-400' : halfStats.half1.scoreB > halfStats.half1.scoreA ? 'text-blue-400' : 'text-slate-400'}>
+                {halfStats.half1.scoreA > halfStats.half1.scoreB ? `+${halfStats.half1.scoreA - halfStats.half1.scoreB}` :
+                  halfStats.half1.scoreB > halfStats.half1.scoreA ? `+${halfStats.half1.scoreB - halfStats.half1.scoreA}` : '0'}
+              </div>
 
-              <Button
-                onClick={() => toast({ title: "Defense timeout called" })}
-                className="h-16 px-8 flex items-center gap-3 bg-blue-700 hover:bg-blue-800 text-white border-2 border-blue-600"
-              >
-                <div className="text-sm">Timeout</div>
-              </Button>
+              <div className="text-slate-400">2nd</div>
+              <div className="text-red-400">{halfStats.half2.scoreA}</div>
+              <div className="text-blue-400">{halfStats.half2.scoreB}</div>
+              <div className={halfStats.half2.scoreA > halfStats.half2.scoreB ? 'text-red-400' : halfStats.half2.scoreB > halfStats.half2.scoreA ? 'text-blue-400' : 'text-slate-400'}>
+                {halfStats.half2.scoreA > halfStats.half2.scoreB ? `+${halfStats.half2.scoreA - halfStats.half2.scoreB}` :
+                  halfStats.half2.scoreB > halfStats.half2.scoreA ? `+${halfStats.half2.scoreB - halfStats.half2.scoreA}` : '0'}
+              </div>
+
+              <div className="text-white font-bold border-t border-slate-600 pt-2">Total</div>
+              <div className="text-red-500 font-bold border-t border-slate-600 pt-2">{match?.team_a_score}</div>
+              <div className="text-blue-500 font-bold border-t border-slate-600 pt-2">{match?.team_b_score}</div>
+              <div className={(match?.team_a_score ?? 0) > (match?.team_b_score ?? 0) ? 'text-red-500 font-bold border-t border-slate-600 pt-2' : (match?.team_b_score ?? 0) > (match?.team_a_score ?? 0) ? 'text-blue-500 font-bold border-t border-slate-600 pt-2' : 'text-slate-400 font-bold border-t border-slate-600 pt-2'}>
+                {Math.abs((match?.team_a_score ?? 0) - (match?.team_b_score ?? 0))}
+              </div>
+
+              <div className="col-span-4 border-t border-slate-600 pt-2 mt-2"></div>
+              <div className="text-slate-500">Raids</div>
+              <div className="text-red-400">{halfStats.half1.raidsA + halfStats.half2.raidsA}</div>
+              <div className="text-blue-400">{halfStats.half1.raidsB + halfStats.half2.raidsB}</div>
+              <div></div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Bottom Control Bar - Fixed */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-t border-slate-800 px-6 py-4 shadow-2xl z-50">
-        <div className="max-w-[1920px] mx-auto flex gap-4">
-          <Button
-            onClick={handleUndo}
-            disabled={events.length === 0}
-            variant="outline"
-            className="flex-1 h-14 text-lg border-slate-600 hover:bg-slate-800"
-          >
-            <Undo2 className="h-5 w-5 mr-2" />
-            Undo
-          </Button>
 
           <Button
-            onClick={handleRedo}
-            disabled={undoneEvents.length === 0}
-            variant="outline"
-            className="flex-1 h-14 text-lg border-slate-600 hover:bg-slate-800"
+            onClick={() => navigate('/')}
+            className="h-14 px-8 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-2xl"
           >
-            <Redo2 className="h-5 w-5 mr-2" />
-            Redo
-          </Button>
-
-          <Button
-            onClick={handleStopRaid}
-            variant="outline"
-            className="flex-1 h-14 text-lg border-red-600 text-red-400 hover:bg-red-950"
-          >
-            <StopCircle className="h-5 w-5 mr-2" />
-            Stop Raid
-          </Button>
-
-          <Button
-            onClick={handleNextRaid}
-            className="flex-1 h-14 text-lg bg-green-600 hover:bg-green-700"
-          >
-            Next Raid →
+            Back to Home
           </Button>
         </div>
-      </div>
+      )}
 
-      {/* Player Select Dialog */}
-      <Dialog open={showPlayerSelectDialog} onOpenChange={setShowPlayerSelectDialog}>
-        <DialogContent className="sm:max-w-[600px] bg-slate-900 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-xl text-white">
-              Select Next Raider - {activeTeam === "A" ? teamA.name : teamB.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-4 gap-4 py-6">
-            {(activeTeam === "A" ? playersA : playersB).slice(0, 8).map((player) => {
-              const outPlayers = activeTeam === "A" ? outPlayersA : outPlayersB;
-              const isOut = outPlayers.includes(player.id);
-              return (
-                <button
-                  key={player.id}
-                  onClick={() => !isOut && handlePlayerSelect(player.id)}
-                  disabled={isOut}
-                  className={`
-                    aspect-square rounded-xl border-2 flex flex-col items-center justify-center
-                    transition-all duration-300 hover:scale-110
-                    ${isOut
-                      ? 'bg-slate-800/30 border-slate-700 text-slate-600 opacity-40 cursor-not-allowed'
-                      : activeTeam === "A"
-                      ? 'bg-red-600 border-red-400 text-white hover:bg-red-700 shadow-lg hover:shadow-red-500/50'
-                      : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-500/50'
-                    }
-                  `}
-                >
-                  <div className="text-3xl font-bold mb-1">
-                    {player.jersey_number || '?'}
-                  </div>
-                  <div className="text-xs truncate w-full text-center px-2">
-                    {player.name}
-                  </div>
-                </button>
-              );
-            })}
+      {/* Completing Raid Indicator */}
+      {matchState === 'COMPLETING_RAID' && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[90] px-4 py-2 bg-amber-600 rounded-full text-white font-bold text-sm shadow-lg animate-pulse">
+          ⏳ Completing current raid...
+        </div>
+      )}
+
+      {/* Full-Screen Exit Overlay */}
+      {showExitScreen && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-sm flex flex-col items-center justify-center gap-8 p-6">
+          {/* Paused Indicator */}
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-20 w-20 rounded-full bg-red-500/20 border-4 border-red-500 flex items-center justify-center animate-pulse">
+              <svg className="h-10 w-10 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-black text-white uppercase tracking-wider mt-4">
+              Match Paused
+            </h1>
+            <p className="text-slate-400 text-center text-lg">
+              {matchTimer > 0 ? `${Math.floor(matchTimer / 60)}:${(matchTimer % 60).toString().padStart(2, '0')} remaining` : 'Time up'}
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <Button
+              onClick={handleContinueMatch}
+              className="h-16 text-xl font-bold bg-green-600 hover:bg-green-700 text-white rounded-2xl shadow-[0_0_30px_rgba(22,163,74,0.4)] transition-all hover:scale-105"
+            >
+              <svg className="h-6 w-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Rotate & Continue
+            </Button>
+
+            <Button
+              onClick={handleExitMatch}
+              variant="outline"
+              className="h-16 text-xl font-bold bg-transparent border-2 border-red-500 text-red-500 hover:bg-red-500/10 rounded-2xl transition-all"
+            >
+              <svg className="h-6 w-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Exit Match
+            </Button>
+          </div>
+
+          {/* Score Display */}
+          <div className="mt-4 flex items-center gap-4 text-2xl font-bold">
+            <span className="text-red-400">{teamA?.name}: {match?.team_a_score}</span>
+            <span className="text-slate-600">vs</span>
+            <span className="text-blue-400">{teamB?.name}: {match?.team_b_score}</span>
+          </div>
+
+          <p className="text-slate-500 text-sm mt-4">
+            Press phone back button again to exit
+          </p>
+        </div>
+      )}
     </div>
   );
 };
