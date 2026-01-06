@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { handleShare } from "@/lib/share-utils";
 
 const LiveMatch = () => {
   const { id } = useParams();
@@ -617,15 +618,11 @@ const LiveMatch = () => {
       <div className="h-[60px] border-t border-slate-200 bg-white flex items-center justify-around px-4 shrink-0 z-50">
         <button
           onClick={() => {
-            if (navigator.share) {
-              navigator.share({
-                title: `${match.match_name} - LIVE`,
-                text: `${teamA.name} ${match.team_a_score} - ${match.team_b_score} ${teamB.name} (LIVE) - Watch on Kabaddi Score Buddy`,
-                url: window.location.href,
-              });
-            } else {
-              toast({ title: "Link Copied", description: "Match link copied to clipboard!" });
-            }
+            handleShare({
+              title: `${match.match_name} - LIVE`,
+              text: `${teamA.name} ${match.team_a_score} - ${match.team_b_score} ${teamB.name} (LIVE) - Watch on Kabaddi Score Buddy`,
+              url: `/matches/${id}/spectate`
+            });
           }}
           className="flex flex-col items-center gap-1 group"
         >

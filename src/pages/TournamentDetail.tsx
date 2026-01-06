@@ -18,6 +18,7 @@ import { EditTournamentDialog } from "@/components/EditTournamentDialog";
 import { Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { handleShare } from "@/lib/share-utils";
 import { generateRoundRobinFixtures, generateKnockoutFixtures } from "@/lib/tournament-utils";
 import {
   DropdownMenu,
@@ -545,7 +546,16 @@ const TournamentDetail = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors">
+            <button
+              className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
+              onClick={() => {
+                handleShare({
+                  title: `Tournament: ${tournament.name}`,
+                  text: `Check out the ${tournament.name} tournament on RaidBook!`,
+                  url: `/tournaments/${id}`
+                });
+              }}
+            >
               <Share2 className="w-5 h-5" />
             </button>
             <DropdownMenu>
@@ -848,190 +858,134 @@ const TournamentDetail = () => {
                   <span className="text-[10px] font-medium lowercase">Generate fixtures in the Live tab to see the roadmap.</span>
                 </p>
               </div>
-            ) : tournament?.tournament_type === 'Knockout' ? (
+            ) : (
               <div className="overflow-x-auto pb-20 no-scrollbar select-none">
                 <div className="flex gap-16 p-8 min-w-max items-start">
-                  {/* Generate Bracket Columns by Round */}
-                  {Array.from({ length: Math.max(...matches.map(m => m.round_number || 0)) }).map((_, i) => {
-                    const roundNum = i + 1;
-                    const roundMatches = matches.filter(m => m.round_number === roundNum).sort((a, b) => Number(a.match_number) - Number(b.match_number));
-                    const nextMatches = matches.filter(m => m.round_number === roundNum + 1);
+                  {/* Generate Unified Roadmap Columns by Round */}
+                  {(() => {
+                    // Group matches by round (preferring round_number, fallback to round_name)
+                    const roundsMap: Record<string, Match[]> = {};
+                    matches.forEach(m => {
+                      const key = m.round_number?.toString() || m.round_name || '1';
+                      if (!roundsMap[key]) roundsMap[key] = [];
+                      roundsMap[key].push(m);
+                    });
 
-                    return (
-                      <div key={roundNum} className="flex flex-col gap-12 w-72">
-                        <div className="flex items-center gap-3 px-1 mb-4">
-                          <div className="w-2 h-6 bg-orange-500 rounded-full" />
-                          <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-900">
-                            {roundMatches[0]?.round_name || `Round ${roundNum}`}
-                          </span>
-                        </div>
+                    return Object.entries(roundsMap)
+                      .sort((a, b) => Number(a[0]) - Number(b[0]))
+                      .map(([roundKey, roundMatches]) => {
+                        const roundNum = parseInt(roundKey);
+                        const sortedMatches = roundMatches.sort((a, b) => Number(a.match_number) - Number(b.match_number));
+                        const isKnockout = tournament?.tournament_type?.toLowerCase() === 'knockout';
 
-                        <div className="flex flex-col gap-16 justify-around h-full">
-                          {roundMatches.map((match) => {
-                            const isMatchLive = match.status === 'live';
-                            const isMatchDone = match.status === 'completed';
+                        return (
+                          <div key={roundKey} className="flex flex-col gap-12 w-80">
+                            {/* Round Header Column */}
+                            <div className="flex items-center gap-3 px-1 mb-4">
+                              <div className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_12px_rgba(249,115,22,0.4)]" />
+                              <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-900">
+                                {sortedMatches[0]?.round_name || `Round ${roundKey}`}
+                              </span>
+                            </div>
 
-                            return (
-                              <div key={match.id} className="relative group">
-                                <div className={cn(
-                                  "bg-white border-2 rounded-[32px] p-5 shadow-sm transition-all duration-300 relative z-10 w-full hover:shadow-xl hover:-translate-y-1",
-                                  isMatchLive ? "border-orange-500 ring-4 ring-orange-500/10" : "border-slate-100"
-                                )}>
-                                  <div className="flex flex-col gap-4">
-                                    {/* Team A Slot */}
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0">
-                                          {match.team_a?.logo_url ? <img src={match.team_a.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-4 h-4 text-slate-200" />}
-                                        </div>
-                                        <span className={cn(
-                                          "text-xs font-black uppercase tracking-tight truncate",
-                                          isMatchDone && (match.team_a_score > match.team_b_score ? "text-slate-900" : "text-slate-400 font-medium")
-                                        )}>
-                                          {match.team_a?.name || "Winner TBD"}
-                                        </span>
-                                      </div>
-                                      {isMatchDone && (
-                                        <span className="text-xs font-black italic text-slate-900 bg-slate-50 px-2 py-1 rounded-lg ml-2">{match.team_a_score}</span>
-                                      )}
-                                    </div>
+                            <div className="flex flex-col gap-12 justify-around h-full min-h-[400px]">
+                              {sortedMatches.map((match) => {
+                                const isMatchLive = match.status === 'live';
+                                const isMatchDone = match.status === 'completed';
 
-                                    <div className="flex items-center gap-4">
-                                      <div className="h-px flex-1 bg-slate-100" />
-                                      <span className="text-[10px] font-black italic text-slate-200 uppercase tracking-widest">VS</span>
-                                      <div className="h-px flex-1 bg-slate-100" />
-                                    </div>
-
-                                    {/* Team B Slot */}
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0">
-                                          {match.team_b?.logo_url ? <img src={match.team_b.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-4 h-4 text-slate-200" />}
-                                        </div>
-                                        <span className={cn(
-                                          "text-xs font-black uppercase tracking-tight truncate",
-                                          isMatchDone && (match.team_b_score > match.team_a_score ? "text-slate-900" : "text-slate-400 font-medium")
-                                        )}>
-                                          {match.team_b?.name || "Winner TBD"}
-                                        </span>
-                                      </div>
-                                      {isMatchDone && (
-                                        <span className="text-xs font-black italic text-slate-900 bg-slate-50 px-2 py-1 rounded-lg ml-2">{match.team_b_score}</span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Match Info Badge */}
-                                  <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">#{match.match_number}</span>
-                                    {isMatchLive && <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[8px] font-black uppercase tracking-widest animate-pulse px-2 py-0.5 rounded-full">Live Now</Badge>}
-                                  </div>
-                                </div>
-
-                                {/* Connector Lines */}
-                                {match.next_match_id && (
-                                  <>
-                                    {/* Horizontal Line out */}
+                                return (
+                                  <div key={match.id} className="relative group">
+                                    {/* Match Card */}
                                     <div className={cn(
-                                      "absolute top-1/2 -right-8 w-8 h-[2px] z-0",
-                                      isMatchDone ? "bg-orange-500" : "bg-slate-100"
-                                    )} />
-                                    {/* Vertical Line Connector */}
-                                    <div className={cn(
-                                      "absolute -right-8 w-[2px] z-0",
-                                      match.is_team_a_winner_slot ? "top-1/2 h-[calc(100%+64px)]" : "bottom-1/2 h-[calc(100%+64px)]",
-                                      isMatchDone ? "bg-orange-500" : "bg-slate-100"
-                                    )} />
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                                      "bg-white border-2 rounded-[32px] p-6 shadow-sm transition-all duration-500 relative z-10 w-full hover:shadow-2xl hover:-translate-y-2",
+                                      isMatchLive ? "border-orange-500 ring-8 ring-orange-500/5" : "border-slate-100/80"
+                                    )}>
+                                      <div className="flex flex-col gap-5">
+                                        {/* Team A Slot */}
+                                        <div className="flex items-center justify-between gap-4">
+                                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
+                                              {match.team_a?.logo_url ? <img src={match.team_a.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-5 h-5 text-slate-200" />}
+                                            </div>
+                                            <span className={cn(
+                                              "text-xs font-black uppercase tracking-tight truncate",
+                                              isMatchDone && (match.team_a_score > match.team_b_score ? "text-slate-900" : "text-slate-400 font-medium")
+                                            )}>
+                                              {match.team_a?.name || "Winner TBD"}
+                                            </span>
+                                          </div>
+                                          {isMatchDone && (
+                                            <span className="text-sm font-black italic text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">{match.team_a_score}</span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-4 py-1">
+                                          <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-slate-100" />
+                                          <span className="text-[10px] font-black italic text-slate-200 uppercase tracking-widest px-2">VS</span>
+                                          <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-slate-100" />
+                                        </div>
+
+                                        {/* Team B Slot */}
+                                        <div className="flex items-center justify-between gap-4">
+                                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
+                                              {match.team_b?.logo_url ? <img src={match.team_b.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-5 h-5 text-slate-200" />}
+                                            </div>
+                                            <span className={cn(
+                                              "text-xs font-black uppercase tracking-tight truncate",
+                                              isMatchDone && (match.team_b_score > match.team_a_score ? "text-slate-900" : "text-slate-400 font-medium")
+                                            )}>
+                                              {match.team_b?.name || "Winner TBD"}
+                                            </span>
+                                          </div>
+                                          {isMatchDone && (
+                                            <span className="text-sm font-black italic text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">{match.team_b_score}</span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Match Metadata */}
+                                      <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
+                                        <div className="flex flex-col gap-0.5">
+                                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">#{match.match_number || 'TBD'}</span>
+                                          {match.group_name && <span className="text-[8px] font-bold text-orange-400 uppercase tracking-widest">{match.group_name}</span>}
+                                        </div>
+                                        {isMatchLive ? (
+                                          <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[8px] font-black uppercase tracking-widest animate-pulse px-3 py-1 rounded-full">Live Now</Badge>
+                                        ) : match.match_date && (
+                                          <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                                            <Calendar className="w-3 h-3" />
+                                            {new Date(match.match_date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Bracket Connector Lines (Only for Knockout) */}
+                                    {isKnockout && match.next_match_id && (
+                                      <>
+                                        {/* Horizontal Line out */}
+                                        <div className={cn(
+                                          "absolute top-1/2 -right-16 w-16 h-[2.5px] z-0",
+                                          isMatchDone ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.3)]" : "bg-slate-100"
+                                        )} />
+                                        {/* Vertical Line Connector (extended) */}
+                                        <div className={cn(
+                                          "absolute -right-16 w-[2.5px] z-0",
+                                          match.is_team_a_winner_slot ? "top-1/2 h-[calc(100%+48px)]" : "bottom-1/2 h-[calc(100%+48px)]",
+                                          isMatchDone ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.3)]" : "bg-slate-100"
+                                        )} />
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      });
+                  })()}
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-12 pb-20">
-                {/* Group Matches by Round for League View */}
-                {Object.entries(
-                  matches.reduce((acc: any, match) => {
-                    const round = match.round_name || 'General';
-                    if (!acc[round]) acc[round] = [];
-                    acc[round].push(match);
-                    return acc;
-                  }, {})
-                ).map(([round, roundMatches]: [string, any]) => (
-                  <div key={round} className="space-y-6">
-                    <div className="flex items-center gap-4 px-2">
-                      <div className="h-[2px] flex-1 bg-slate-100" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600 bg-orange-50 px-4 py-1.5 rounded-full border border-orange-100">
-                        {round}
-                      </span>
-                      <div className="h-[2px] flex-1 bg-slate-100" />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {roundMatches.map((match: Match) => (
-                        <div key={match.id} className="bg-white border-2 border-slate-50 rounded-[28px] p-5 shadow-sm hover:border-slate-100 transition-all">
-                          <div className="flex items-center justify-between mb-4 px-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">#{match.match_number || 'TBD'}</span>
-                              {match.group_name && (
-                                <Badge variant="secondary" className="text-[8px] font-black uppercase tracking-widest bg-slate-900 text-white rounded-lg px-2">
-                                  {match.group_name}
-                                </Badge>
-                              )}
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[8px] font-black uppercase tracking-widest rounded-lg px-2",
-                                match.status === 'live' ? "bg-red-50 text-red-600 border-red-100" :
-                                  match.status === 'completed' ? "bg-green-50 text-green-600 border-green-100" :
-                                    "bg-slate-50 text-slate-400 border-slate-100"
-                              )}
-                            >
-                              {match.status}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center justify-around py-2">
-                            <div className="flex flex-col items-center gap-2 flex-1 max-w-[100px]">
-                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                                {match.team_a?.logo_url ? <img src={match.team_a.logo_url} className="w-full h-full object-cover rounded-2xl" /> : <Trophy className="w-5 h-5 text-slate-200" />}
-                              </div>
-                              <span className="text-[9px] font-black uppercase tracking-tight text-slate-900 text-center truncate w-full">{match.team_a?.name || 'TBD'}</span>
-                            </div>
-
-                            <div className="px-4 flex flex-col items-center">
-                              <span className="text-xs font-black italic text-slate-200 uppercase tracking-tighter">VS</span>
-                              {match.status === 'completed' && (
-                                <span className="text-xs font-black italic text-orange-600 mt-1">{match.team_a_score} - {match.team_b_score}</span>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col items-center gap-2 flex-1 max-w-[100px]">
-                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                                {match.team_b?.logo_url ? <img src={match.team_b.logo_url} className="w-full h-full object-cover rounded-2xl" /> : <Trophy className="w-5 h-5 text-slate-200" />}
-                              </div>
-                              <span className="text-[9px] font-black uppercase tracking-tight text-slate-900 text-center truncate w-full">{match.team_b?.name || 'TBD'}</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-center">
-                            <div className="flex items-center gap-2 text-slate-400">
-                              <Calendar className="w-3 h-3" />
-                              <span className="text-[9px] font-black uppercase tracking-widest">{format(new Date(match.match_date), 'MMM d • h:mm a')}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
           </TabsContent>

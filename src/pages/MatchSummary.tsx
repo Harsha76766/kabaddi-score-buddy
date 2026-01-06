@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import * as htmlToImage from "html-to-image";
+import { handleShare } from "@/lib/share-utils";
 
 const MatchSummary = () => {
   const { id } = useParams();
@@ -748,13 +749,11 @@ const MatchSummary = () => {
             variant="outline"
             className="flex-1 rounded-2xl h-12 border-slate-100 bg-white text-[10px] font-black uppercase tracking-widest gap-2"
             onClick={() => {
-              if (navigator.share) {
-                navigator.share({
-                  title: `Match Result: ${teamA?.name} vs ${teamB?.name}`,
-                  text: `Final Score: ${match?.team_a_score} - ${match?.team_b_score}. ${winner ? winner.name + ' won!' : 'It was a tie!'}`,
-                  url: window.location.href
-                });
-              }
+              handleShare({
+                title: `Match Result: ${teamA?.name} vs ${teamB?.name}`,
+                text: `Final Score: ${match?.team_a_score} - ${match?.team_b_score}. ${winner ? winner.name + ' won!' : 'It was a tie!'}`,
+                url: `/match-summary/${id}`
+              });
             }}
           >
             <Share2 className="w-4 h-4 text-orange-600" /> Share

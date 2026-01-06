@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
+import { handleShare } from "@/lib/share-utils";
 
 export interface Post {
     id: string;
@@ -209,7 +210,16 @@ export const PostCard = ({ post }: PostCardProps) => {
                             <MessageCircle className="w-6 h-6" />
                             <span className="text-xs font-black font-mono tracking-tighter">24</span>
                         </button>
-                        <button className="text-slate-900 hover:text-slate-400">
+                        <button
+                            className="text-slate-900 hover:text-slate-400"
+                            onClick={() => {
+                                handleShare({
+                                    title: `Post by ${profileName}`,
+                                    text: post.content || `Check out this ${post.type || 'post'} on RaidBook!`,
+                                    url: post.type === 'match_result' ? `/match-summary/${post.match_id}` : `/feed`
+                                });
+                            }}
+                        >
                             <Share2 className="w-6 h-6" />
                         </button>
                     </div>
