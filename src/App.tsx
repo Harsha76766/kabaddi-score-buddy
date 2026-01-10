@@ -45,7 +45,14 @@ import AuditLogs from "./pages/admin/AuditLogs";
 import RBAC from "./pages/admin/RBAC";
 import DeveloperTools from "./pages/admin/DeveloperTools";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
