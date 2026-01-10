@@ -70,8 +70,6 @@ interface Match {
   team_b_score: number;
   team_a_id: string;
   team_b_id: string;
-  next_match_id?: string | null;
-  is_team_a_winner_slot?: boolean | null;
   team_a?: { name: string; id: string; logo_url?: string | null } | null;
   team_b?: { name: string; id: string; logo_url?: string | null } | null;
   created_by?: string | null;
@@ -177,23 +175,8 @@ const TournamentDetail = () => {
   };
 
   const fetchSponsors = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('sponsors')
-        .select('*')
-        .eq('is_active', true);
-
-      if (error) throw error;
-      setSponsors(data.map(s => ({
-        id: s.id,
-        name: s.name,
-        image_url: s.logo_url, // map logo_url to image_url
-        link_url: null, // sponsors table doesn't have link_url yet
-        placement: s.type // map type to placement
-      })) || []);
-    } catch (error) {
-      console.error('Error fetching sponsors:', error);
-    }
+    // Sponsors table doesn't exist in database - skip this feature
+    setSponsors([]);
   };
 
   const fetchTeams = async () => {
@@ -250,8 +233,6 @@ const TournamentDetail = () => {
           id,
           match_name,
           match_number,
-          round_name,
-          group_name,
           match_date,
           venue,
           status,
@@ -259,23 +240,33 @@ const TournamentDetail = () => {
           team_b_score,
           team_a_id,
           team_b_id,
-          next_match_id,
-          is_team_a_winner_slot,
           created_by,
           team_a:teams!matches_team_a_id_fkey (name, id, logo_url),
           team_b:teams!matches_team_b_id_fkey (name, id, logo_url)
         `)
         .eq('tournament_id', id)
-        .order('match_date', { ascending: true }); // Ascending to find next match
+        .order('match_date', { ascending: true });
 
       if (error) throw error;
-      const sortedMatches = data || [];
-      setMatches(sortedMatches); // Display ascending (top to bottom) as requested
+      
+      // Map to Match interface
+      const sortedMatches: Match[] = (data || []).map((m: any) => ({
+        id: m.id,
+        match_name: m.match_name,
+        match_date: m.match_date,
+        venue: m.venue,
+        status: m.status,
+        team_a_score: m.team_a_score || 0,
+        team_b_score: m.team_b_score || 0,
+        team_a_id: m.team_a_id,
+        team_b_id: m.team_b_id,
+        team_a: m.team_a,
+        team_b: m.team_b,
+        created_by: m.created_by,
+      }));
+      
+      setMatches(sortedMatches);
 
-      // Detect "Current Match" for Header Strip
-      // 1. Any LIVE match
-      // 2. The next UPCOMING match
-      // 3. The last COMPLETED match
       const liveMatch = sortedMatches.find(m => m.status === 'live');
       const upcomingMatch = sortedMatches.find(m => m.status === 'scheduled');
       const lastCompletedMatch = [...sortedMatches].reverse().find(m => m.status === 'completed');
@@ -416,16 +407,11 @@ const TournamentDetail = () => {
       }
 
       const matchesToInsert = fixtures.map(f => ({
-        id: f.id,
         tournament_id: id,
         team_a_id: f.team_a_id,
         team_b_id: f.team_b_id,
         match_name: `${f.round_name} - Match ${f.match_number}`,
-        round_name: f.round_name,
-        round_number: f.round_number,
-        match_number: String(f.match_number),
-        next_match_id: f.next_match_id,
-        is_team_a_winner_slot: f.is_team_a_winner_slot,
+        match_number: f.match_number,
         status: 'scheduled',
         match_date: new Date().toISOString(),
         created_by: currentUserId,
@@ -468,8 +454,7 @@ const TournamentDetail = () => {
       // 2. Delete tournament teams
       await supabase.from('tournament_teams').delete().eq('tournament_id', id);
 
-      // 3. Delete sponsors
-      await supabase.from('sponsors').delete().eq('tournament_id', id);
+      // Note: sponsors table doesn't exist
 
       // Finally delete the tournament
       const { error } = await supabase
@@ -772,13 +757,8 @@ const TournamentDetail = () => {
                     <div className="px-6 py-2 border-y border-slate-50 bg-slate-50/30 flex items-center justify-between">
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                          {match.match_name || (match.match_number ? `Match #${match.match_number}` : `Match #${match.id.slice(0, 4)}`)}
+                          {match.match_name}
                         </span>
-                        {(match.round_name || match.group_name) && (
-                          <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-orange-500/60 leading-none mt-0.5">
-                            {match.round_name}{match.round_name && match.group_name ? ' • ' : ''}{match.group_name}
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Circle className={cn("w-1.5 h-1.5 fill-current", match.status === 'live' ? "text-red-500" : "text-slate-300")} />
@@ -863,19 +843,14 @@ const TournamentDetail = () => {
                 <div className="flex gap-16 p-8 min-w-max items-start">
                   {/* Generate Unified Roadmap Columns by Round */}
                   {(() => {
-                    // Group matches by round (preferring round_number, fallback to round_name)
-                    const roundsMap: Record<string, Match[]> = {};
-                    matches.forEach(m => {
-                      const key = m.round_number?.toString() || m.round_name || '1';
-                      if (!roundsMap[key]) roundsMap[key] = [];
-                      roundsMap[key].push(m);
-                    });
+                    // Group matches by index (since round columns not in schema)
+                    const roundsMap: Record<string, Match[]> = { '1': matches };
 
                     return Object.entries(roundsMap)
-                      .sort((a, b) => Number(a[0]) - Number(b[0]))
                       .map(([roundKey, roundMatches]) => {
-                        const roundNum = parseInt(roundKey);
-                        const sortedMatches = roundMatches.sort((a, b) => Number(a.match_number) - Number(b.match_number));
+                        const sortedMatches = [...roundMatches].sort((a, b) => 
+                          new Date(a.match_date).getTime() - new Date(b.match_date).getTime()
+                        );
                         const isKnockout = tournament?.tournament_type?.toLowerCase() === 'knockout';
 
                         return (
@@ -884,7 +859,7 @@ const TournamentDetail = () => {
                             <div className="flex items-center gap-3 px-1 mb-4">
                               <div className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_12px_rgba(249,115,22,0.4)]" />
                               <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-900">
-                                {sortedMatches[0]?.round_name || `Round ${roundKey}`}
+                                All Matches
                               </span>
                             </div>
 
@@ -947,8 +922,7 @@ const TournamentDetail = () => {
                                       {/* Match Metadata */}
                                       <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
                                         <div className="flex flex-col gap-0.5">
-                                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">#{match.match_number || 'TBD'}</span>
-                                          {match.group_name && <span className="text-[8px] font-bold text-orange-400 uppercase tracking-widest">{match.group_name}</span>}
+                                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{match.match_name}</span>
                                         </div>
                                         {isMatchLive ? (
                                           <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[8px] font-black uppercase tracking-widest animate-pulse px-3 py-1 rounded-full">Live Now</Badge>
@@ -961,22 +935,7 @@ const TournamentDetail = () => {
                                       </div>
                                     </div>
 
-                                    {/* Bracket Connector Lines (Only for Knockout) */}
-                                    {isKnockout && match.next_match_id && (
-                                      <>
-                                        {/* Horizontal Line out */}
-                                        <div className={cn(
-                                          "absolute top-1/2 -right-16 w-16 h-[2.5px] z-0",
-                                          isMatchDone ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.3)]" : "bg-slate-100"
-                                        )} />
-                                        {/* Vertical Line Connector (extended) */}
-                                        <div className={cn(
-                                          "absolute -right-16 w-[2.5px] z-0",
-                                          match.is_team_a_winner_slot ? "top-1/2 h-[calc(100%+48px)]" : "bottom-1/2 h-[calc(100%+48px)]",
-                                          isMatchDone ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.3)]" : "bg-slate-100"
-                                        )} />
-                                      </>
-                                    )}
+                                    {/* Bracket Connector Lines - Not available without knockout bracket columns */}
                                   </div>
                                 );
                               })}

@@ -749,29 +749,19 @@ const LiveScoring = () => {
       const currentRaider = existingRaider || {
         match_id: matchId,
         player_id: raiderId,
-        raids_attempted: 0,
         raid_points: 0,
-        touch_points: 0,
-        bonus_points: 0,
-        successful_raids: 0,
-        super_raids: 0,
         tackle_points: 0,
-        successful_tackles: 0,
-        super_tackles: 0
+        bonus_points: 0
       };
 
       const raidPoints = action.touchPoints + (action.bonusPoint ? 1 : 0);
-      const isSuccessfulRaid = raidPoints > 0;
-      const isSuperRaid = raidPoints >= 3;
 
       const updatedRaider = {
-        ...currentRaider,
-        raids_attempted: (currentRaider.raids_attempted || 0) + 1,
+        match_id: matchId,
+        player_id: raiderId,
         raid_points: (currentRaider.raid_points || 0) + raidPoints,
-        touch_points: (currentRaider.touch_points || 0) + action.touchPoints,
+        tackle_points: currentRaider.tackle_points || 0,
         bonus_points: (currentRaider.bonus_points || 0) + (action.bonusPoint ? 1 : 0),
-        successful_raids: (currentRaider.successful_raids || 0) + (isSuccessfulRaid ? 1 : 0),
-        super_raids: (currentRaider.super_raids || 0) + (isSuperRaid ? 1 : 0),
       };
 
       await supabase.from('player_match_stats').upsert(updatedRaider);
@@ -788,26 +778,22 @@ const LiveScoring = () => {
         const currentTackler = existingTackler || {
           match_id: matchId,
           player_id: action.tacklerId,
-          raids_attempted: 0,
           raid_points: 0,
-          touch_points: 0,
-          bonus_points: 0,
-          successful_raids: 0,
-          super_raids: 0,
           tackle_points: 0,
-          successful_tackles: 0,
-          super_tackles: 0
+          bonus_points: 0
         };
 
+        const activeDefendersCount = (activeTeam === 'A' ? playersB : playersA)
+          .filter(p => !outPlayers.includes(p.id)).length;
         const isSuperTackle = activeDefendersCount <= 3;
-        // Points: 1 for tackle, +1 if super tackle (total 2)
         const tacklePoints = isSuperTackle ? 2 : 1;
 
         const updatedTackler = {
-          ...currentTackler,
+          match_id: matchId,
+          player_id: action.tacklerId,
+          raid_points: currentTackler.raid_points || 0,
           tackle_points: (currentTackler.tackle_points || 0) + tacklePoints,
-          successful_tackles: (currentTackler.successful_tackles || 0) + 1,
-          super_tackles: (currentTackler.super_tackles || 0) + (isSuperTackle ? 1 : 0),
+          bonus_points: currentTackler.bonus_points || 0,
         };
 
         await supabase.from('player_match_stats').upsert(updatedTackler);

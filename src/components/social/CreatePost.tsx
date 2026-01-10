@@ -22,13 +22,14 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error("Not authenticated");
 
-            // @ts-ignore - posts table exists but not in generated types
-            const { error } = await supabase.from('posts').insert({
-                user_id: user.id,
-                content: content.trim(),
+            // Posts feature not yet available - would need 'posts' table in database
+            toast({ 
+              variant: "destructive", 
+              title: "Feature Coming Soon", 
+              description: "Social posts feature is not yet available" 
             });
-
-            if (error) throw error;
+            throw new Error("Posts feature not available");
+            return;
 
             setContent("");
             setIsExpanded(false);

@@ -28,6 +28,7 @@ export default defineConfig(async ({ mode }) => {
       },
     },
     // Required for Capacitor - makes paths relative for file:// protocol
+    base: './',
     build: {
       chunkSizeWarningLimit: 1200,
       rollupOptions: {

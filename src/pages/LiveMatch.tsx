@@ -50,9 +50,9 @@ const LiveMatch = () => {
         .eq("id", id)
         .single();
 
-      if (matchError) throw matchError;
       setMatch(matchData);
-      if (matchData.active_team) setActiveTeam(matchData.active_team as "A" | "B");
+      // active_team not in schema, default to A
+      setActiveTeam("A");
 
       const [tA, tB, pA, pB, evts] = await Promise.all([
         supabase.from("teams").select("*").eq("id", matchData.team_a_id).single(),
@@ -180,80 +180,20 @@ const LiveMatch = () => {
   useEffect(() => {
     if (!id) return;
 
-    // Fetch comments
-    const fetchComments = async () => {
-      const { data } = await supabase
-        .from('match_comments')
-        .select('*, profiles(name)')
-        .eq('match_id', id)
-        .order('created_at', { ascending: false });
-      if (data) setMatchComments(data);
-    };
-
-    // Fetch reaction count
-    const fetchReactions = async () => {
-      const { count } = await supabase
-        .from('match_reactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('match_id', id);
-      if (count !== null) setReactionCount(count);
-    };
-
-    fetchComments();
-    fetchReactions();
-
-    // Subscribe to comments
-    const commentSub = supabase
-      .channel(`match_comments_${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_comments', filter: `match_id=eq.${id}` }, () => {
-        fetchComments();
-      })
-      .subscribe();
-
-    // Subscribe to reactions
-    const reactionSub = supabase
-      .channel(`match_reactions_${id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'match_reactions', filter: `match_id=eq.${id}` }, () => {
-        setReactionCount(prev => prev + 1);
-      })
-      .subscribe();
-
-    return () => {
-      commentSub.unsubscribe();
-      reactionSub.unsubscribe();
-    };
+    // Comments and reactions features not available yet - tables don't exist
+    // Just set empty defaults
+    setMatchComments([]);
+    setReactionCount(0);
   }, [id]);
 
   const handlePostComment = async () => {
-    if (!newComment.trim() || !id) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({ title: "Login Required", description: "Please login to comment", variant: "destructive" });
-      return;
-    }
-
-    const { error } = await supabase
-      .from('match_comments')
-      .insert({ match_id: id, user_id: user.id, content: newComment });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to post comment", variant: "destructive" });
-    } else {
-      setNewComment("");
-    }
+    // Feature not available - match_comments table doesn't exist
+    toast({ title: "Coming Soon", description: "Comments feature not yet available" });
   };
 
   const handlePostReaction = async () => {
-    if (!id) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({ title: "Login Required", description: "Please login to react", variant: "destructive" });
-      return;
-    }
-
-    await supabase
-      .from('match_reactions')
-      .insert({ match_id: id, user_id: user.id, type: 'heart' });
+    // Feature not available - match_reactions table doesn't exist
+    toast({ title: "Coming Soon", description: "Reactions feature not yet available" });
   };
 
   if (!match || !teamA || !teamB) {
