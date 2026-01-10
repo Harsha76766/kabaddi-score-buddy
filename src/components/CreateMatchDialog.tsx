@@ -44,15 +44,13 @@ export const CreateMatchDialog = ({ tournamentId, teams, onMatchCreated }: Creat
       const { error } = await supabase.from('matches').insert({
         tournament_id: tournamentId,
         match_name: formData.match_name,
-        match_number: formData.match_number || null,
+        match_number: formData.match_number ? parseInt(formData.match_number) : null,
         team_a_id: formData.team_a_id,
         team_b_id: formData.team_b_id,
         match_date: formData.match_date,
         match_time: formData.match_time || null,
         venue: formData.venue || null,
-        round_name: formData.round_name || null,
-        group_name: formData.group_name || null,
-        status: 'upcoming',
+        status: 'scheduled',
         created_by: user?.id,
       });
 
