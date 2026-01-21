@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
 import Tournament from "./pages/Tournament";
 import CreateTournament from "./pages/CreateTournament";
 import TournamentDetail from "./pages/TournamentDetail";
@@ -21,7 +22,11 @@ import LiveScoring from "./pages/LiveScoring";
 import LiveMatch from "./pages/LiveMatch";
 import MatchSummary from "./pages/MatchSummary";
 import Leaderboard from "./pages/Leaderboard";
-import FeedPage from "./pages/Feed";
+import ScanQR from "./pages/ScanQR";
+import Shop from "./pages/Shop";
+import PlayerProfile from "./pages/PlayerProfile";
+import PublicLiveMatches from "./pages/PublicLiveMatches";
+import PublicTournaments from "./pages/PublicTournaments";
 import NotFound from "./pages/NotFound";
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -63,7 +68,10 @@ const App = () => (
         <AppUrlListener />
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/" element={<Landing />} />
+          <Route path="/live-matches" element={<PublicLiveMatches />} />
+          <Route path="/explore-tournaments" element={<PublicTournaments />} />
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/tournaments" element={<ProtectedRoute><Tournament /></ProtectedRoute>} />
           <Route path="/tournaments/create" element={<ProtectedRoute><CreateTournament /></ProtectedRoute>} />
           <Route path="/tournaments/:id" element={<ProtectedRoute><TournamentDetail /></ProtectedRoute>} />
@@ -73,11 +81,14 @@ const App = () => (
           <Route path="/matches" element={<ProtectedRoute><Matches /></ProtectedRoute>} />
           <Route path="/matches/create" element={<ProtectedRoute><CreateMatch /></ProtectedRoute>} />
           <Route path="/matches/:id/score" element={<ProtectedRoute><LiveScoring /></ProtectedRoute>} />
-          <Route path="/matches/:id/spectate" element={<ProtectedRoute><LiveMatch /></ProtectedRoute>} />
+          <Route path="/matches/:id/spectate" element={<LiveMatch />} />
           <Route path="/match-summary/:id" element={<ProtectedRoute><MatchSummary /></ProtectedRoute>} />
           <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
-          <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
+          <Route path="/feed" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/shop" element={<ProtectedRoute><Shop /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/scan-qr" element={<ProtectedRoute><ScanQR /></ProtectedRoute>} />
+          <Route path="/players/:id" element={<ProtectedRoute><PlayerProfile /></ProtectedRoute>} />
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><ManageUsers /></AdminRoute>} />

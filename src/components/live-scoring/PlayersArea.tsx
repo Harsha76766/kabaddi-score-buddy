@@ -19,6 +19,8 @@ interface PlayersAreaProps {
     onOpenSubstitution: (team: "A" | "B") => void;
     emptyRaidsA?: number;
     emptyRaidsB?: number;
+    playing7A?: string[];
+    playing7B?: string[];
 }
 
 export const PlayersArea = ({
@@ -37,7 +39,9 @@ export const PlayersArea = ({
     isSelecting = false,
     onOpenSubstitution,
     emptyRaidsA = 0,
-    emptyRaidsB = 0
+    emptyRaidsB = 0,
+    playing7A = [],
+    playing7B = []
 }: PlayersAreaProps) => {
     const isDOD = (activeTeam === "A" && emptyRaidsA >= 2) || (activeTeam === "B" && emptyRaidsB >= 2);
 

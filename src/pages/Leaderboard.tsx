@@ -100,11 +100,10 @@ const Leaderboard = () => {
               {players.map((player, index) => (
                 <div
                   key={player.id}
-                  className={`flex items-center gap-4 p-4 rounded-lg transition-all ${
-                    index < 3
+                  className={`flex items-center gap-4 p-4 rounded-lg transition-all ${index < 3
                       ? "bg-primary/5 border-2 border-primary/20"
                       : "bg-muted/30"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div className="w-10 flex justify-center">

@@ -109,7 +109,9 @@ export const MatchStartDialog = ({
           current_half: 1,
           toss_winner_id: tossWinner === "A" ? teamAId : teamBId,
           toss_choice: tossChoice,
-          is_timer_running: true
+          is_timer_running: true,
+          playing_7_a: selectedPlayersA,
+          playing_7_b: selectedPlayersB
         })
         .eq("id", matchId);
 
@@ -242,8 +244,8 @@ export const MatchStartDialog = ({
                 <div className="grid grid-cols-2 gap-3">
                   <Card
                     className={`p-4 cursor-pointer transition-all ${tossWinner === "A"
-                        ? "bg-primary/20 border-primary"
-                        : "hover:border-primary/50"
+                      ? "bg-primary/20 border-primary"
+                      : "hover:border-primary/50"
                       }`}
                     onClick={() => setTossWinner("A")}
                   >
@@ -263,8 +265,8 @@ export const MatchStartDialog = ({
                   </Card>
                   <Card
                     className={`p-4 cursor-pointer transition-all ${tossWinner === "B"
-                        ? "bg-primary/20 border-primary"
-                        : "hover:border-primary/50"
+                      ? "bg-primary/20 border-primary"
+                      : "hover:border-primary/50"
                       }`}
                     onClick={() => setTossWinner("B")}
                   >
@@ -291,8 +293,8 @@ export const MatchStartDialog = ({
                   <div className="grid grid-cols-2 gap-3">
                     <Card
                       className={`p-4 cursor-pointer transition-all ${tossChoice === "raid"
-                          ? "bg-primary/20 border-primary"
-                          : "hover:border-primary/50"
+                        ? "bg-primary/20 border-primary"
+                        : "hover:border-primary/50"
                         }`}
                       onClick={() => setTossChoice("raid")}
                     >
@@ -312,8 +314,8 @@ export const MatchStartDialog = ({
                     </Card>
                     <Card
                       className={`p-4 cursor-pointer transition-all ${tossChoice === "defend"
-                          ? "bg-primary/20 border-primary"
-                          : "hover:border-primary/50"
+                        ? "bg-primary/20 border-primary"
+                        : "hover:border-primary/50"
                         }`}
                       onClick={() => setTossChoice("defend")}
                     >

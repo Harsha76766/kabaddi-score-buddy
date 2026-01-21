@@ -19,13 +19,14 @@ import { Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { handleShare } from "@/lib/share-utils";
-import { generateRoundRobinFixtures, generateKnockoutFixtures } from "@/lib/tournament-utils";
+import { generateRoundRobinFixtures, generateKnockoutFixtures, generateLeaguePlusKnockoutFixtures, generateGroupPlusKnockoutFixtures } from "@/lib/tournament-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useBackNavigation } from "@/hooks/useBackNavigation";
 
 interface Tournament {
   id: string;
@@ -64,12 +65,18 @@ interface Match {
   id: string;
   match_name: string;
   match_date: string;
+  match_number?: string | number;
   venue: string | null;
   status: string;
   team_a_score: number;
   team_b_score: number;
   team_a_id: string;
   team_b_id: string;
+  round_name?: string | null;
+  group_name?: string | null;
+  round_number?: number | null;
+  next_match_id?: string | null;
+  is_team_a_winner_slot?: boolean | null;
   team_a?: { name: string; id: string; logo_url?: string | null } | null;
   team_b?: { name: string; id: string; logo_url?: string | null } | null;
   created_by?: string | null;
@@ -105,6 +112,7 @@ interface HeroStats {
 const TournamentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const handleBack = useBackNavigation();
   const { toast } = useToast();
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [teams, setTeams] = useState<TournamentTeam[]>([]);
@@ -139,6 +147,7 @@ const TournamentDetail = () => {
   }>({ teamA: [], teamB: [] });
   const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
   const [activeTab, setActiveTab] = useState("matches");
+  const [fixtureType, setFixtureType] = useState<string>('League');
 
   useEffect(() => {
     if (id) fetchTournamentData();
@@ -248,7 +257,7 @@ const TournamentDetail = () => {
         .order('match_date', { ascending: true });
 
       if (error) throw error;
-      
+
       // Map to Match interface
       const sortedMatches: Match[] = (data || []).map((m: any) => ({
         id: m.id,
@@ -264,7 +273,7 @@ const TournamentDetail = () => {
         team_b: m.team_b,
         created_by: m.created_by,
       }));
-      
+
       setMatches(sortedMatches);
 
       const liveMatch = sortedMatches.find(m => m.status === 'live');
@@ -385,7 +394,8 @@ const TournamentDetail = () => {
     }
   };
 
-  const handleGenerateFixtures = async () => {
+  const handleGenerateFixtures = async (type?: string) => {
+    const selectedType = type || fixtureType;
     if (!tournament || teams.length < 2) {
       toast({
         variant: "destructive",
@@ -400,10 +410,14 @@ const TournamentDetail = () => {
       const teamList = teams.map(t => ({ id: t.teams.id, name: t.teams.name }));
       let fixtures: any[] = [];
 
-      if (tournament.tournament_type === 'League' || tournament.tournament_type === 'Round Robin') {
+      if (selectedType === 'League' || selectedType === 'Round Robin') {
         fixtures = generateRoundRobinFixtures(teamList);
-      } else if (tournament.tournament_type === 'Knockout') {
+      } else if (selectedType === 'Knockout') {
         fixtures = generateKnockoutFixtures(teamList);
+      } else if (selectedType === 'League + Knockout') {
+        fixtures = generateLeaguePlusKnockoutFixtures(teamList);
+      } else if (selectedType === 'Group + Knockout') {
+        fixtures = generateGroupPlusKnockoutFixtures(teamList);
       }
 
       const matchesToInsert = fixtures.map(f => ({
@@ -447,15 +461,39 @@ const TournamentDetail = () => {
     try {
       setLoading(true);
 
-      // Manually cascade delete related records to bypass potential FK constraints
-      // 1. Delete matches
+      // Get all match IDs for this tournament first
+      const { data: matchIds } = await supabase
+        .from('matches')
+        .select('id')
+        .eq('tournament_id', id);
+
+      // Cascade delete in proper order
+      if (matchIds && matchIds.length > 0) {
+        const ids = matchIds.map(m => m.id);
+
+        // 1. Delete match_events (references matches)
+        await supabase.from('match_events').delete().in('match_id', ids);
+
+        // 2. Delete match_comments if they exist (table may not exist in schema)
+        await (supabase as any).from('match_comments').delete().in('match_id', ids);
+
+        // 3. Delete match_reactions if they exist (table may not exist in schema)
+        await (supabase as any).from('match_reactions').delete().in('match_id', ids);
+
+        // 4. Delete player_match_stats (ADDED - was missing!)
+        await supabase.from('player_match_stats').delete().in('match_id', ids);
+      }
+
+      // 5. Delete player_stats for this tournament (table may not exist in schema)
+      await (supabase as any).from('player_stats').delete().eq('tournament_id', id);
+
+      // 6. Delete matches
       await supabase.from('matches').delete().eq('tournament_id', id);
 
-      // 2. Delete tournament teams
+      // 7. Delete tournament teams
       await supabase.from('tournament_teams').delete().eq('tournament_id', id);
 
       // Note: sponsors table doesn't exist
-
       // Finally delete the tournament
       const { error } = await supabase
         .from('tournaments')
@@ -481,9 +519,43 @@ const TournamentDetail = () => {
     }
   };
 
+  // Remove a team from the tournament
+  const handleRemoveTeam = async (tournamentTeamId: string, teamName: string) => {
+    const confirmRemove = window.confirm(
+      `Are you sure you want to remove "${teamName}" from this tournament? This cannot be undone.`
+    );
+
+    if (!confirmRemove) return;
+
+    try {
+      const { error } = await supabase
+        .from('tournament_teams')
+        .delete()
+        .eq('id', tournamentTeamId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Team Removed",
+        description: `${teamName} has been removed from the tournament.`,
+      });
+
+      // Refresh teams list
+      await fetchTeams();
+    } catch (error: any) {
+      console.error('Error removing team:', error);
+      toast({
+        variant: "destructive",
+        title: "Remove Failed",
+        description: error.message || "Failed to remove team from tournament.",
+      });
+    }
+  };
+
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background pb-20">
+      <div key="loading" className="min-h-screen bg-background pb-20">
         <div className="p-4 animate-pulse space-y-4">
           <div className="h-48 bg-card rounded-lg" />
           <div className="h-32 bg-card rounded-lg" />
@@ -495,7 +567,7 @@ const TournamentDetail = () => {
 
   if (!tournament) {
     return (
-      <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
+      <div key="not-found" className="min-h-screen bg-background pb-20 flex items-center justify-center">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Tournament not found</p>
           <Button onClick={() => navigate('/tournaments')}>Back to Tournaments</Button>
@@ -506,14 +578,14 @@ const TournamentDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900">
-      {/* 1️⃣ COMPACT SMART HEADER (FIXED) */}
-      <div className="sticky top-0 z-50 bg-white border-b border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <div key="content" className="min-h-screen bg-slate-50 pb-24 font-sans selection:bg-orange-100 selection:text-orange-900">
+      {/* 1️⃣ HEADER: Floating & Glassy */}
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm supports-[backdrop-filter]:bg-white/60">
+        <div className="flex items-center justify-between px-4 h-16 max-w-screen-xl mx-auto">
+          <div className="flex items-center gap-3 overflow-hidden">
             <button
-              onClick={() => navigate('/tournaments')}
-              className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors"
+              onClick={() => handleBack()}
+              className="w-10 h-10 -ml-2 rounded-xl flex items-center justify-center text-slate-500 hover:bg-slate-100/80 hover:text-slate-900 transition-all active:scale-95"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -656,301 +728,353 @@ const TournamentDetail = () => {
 
           {/* 4️⃣ MATCHES TAB (CORE EXPERIENCE - NOW CALLED LIVE) */}
           <TabsContent value="matches" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0">
-            {isOrganizer && (
-              <div className="flex justify-between items-center px-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Match Management</span>
-                <div className="flex items-center gap-2">
-                  {matches.length === 0 && (
-                    <Button
-                      onClick={handleGenerateFixtures}
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "border-orange-200 text-orange-600 hover:bg-orange-50 rounded-xl font-bold text-[10px] uppercase tracking-widest",
-                        teams.length < 2 && "opacity-50 cursor-not-allowed"
-                      )}
+            <div>
+              {isOrganizer && (
+                <div className="flex justify-between items-center px-2 mb-4">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Match Management</span>
+                  <div className="flex items-center gap-2">
+                    <CreateMatchDialog
+                      tournamentId={id!}
+                      teams={teams.map(t => ({ id: t.teams.id, name: t.teams.name }))}
+                      onMatchCreated={fetchTournamentData}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {matches.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
+                    <Swords className="w-8 h-8" />
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">No matches scheduled yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {matches.map((match) => (
+                    <div
+                      key={match.id}
+                      onClick={() => {
+                        if (match.status === 'completed') {
+                          navigate(`/match-summary/${match.id}`);
+                        } else {
+                          navigate(`/matches/${match.id}/spectate`);
+                        }
+                      }}
+                      className="group bg-white border-2 border-slate-100 hover:border-orange-500/20 rounded-[32px] overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer active:scale-95"
                     >
-                      <Rocket className="w-3 h-3 mr-1" />
-                      Auto-Generate
-                    </Button>
-                  )}
-                  <CreateMatchDialog
-                    tournamentId={id!}
-                    teams={teams.map(t => ({ id: t.teams.id, name: t.teams.name }))}
-                    onMatchCreated={fetchTournamentData}
-                  />
-                </div>
-              </div>
-            )}
+                      {/* Top Row: BIG SCORE */}
+                      <div className="p-6 pb-4 flex items-center justify-between relative overflow-hidden">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-slate-50 z-0" />
 
-            {matches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
-                  <Swords className="w-8 h-8" />
-                </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">No matches scheduled yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {matches.map((match) => (
-                  <div
-                    key={match.id}
-                    onClick={() => {
-                      if (match.status === 'completed') {
-                        navigate(`/match-summary/${match.id}`);
-                      } else {
-                        navigate(`/matches/${match.id}/spectate`);
-                      }
-                    }}
-                    className="group bg-white border-2 border-slate-100 hover:border-orange-500/20 rounded-[32px] overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer active:scale-95"
-                  >
-                    {/* Top Row: BIG SCORE */}
-                    <div className="p-6 pb-4 flex items-center justify-between relative overflow-hidden">
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-slate-50 z-0" />
-
-                      <div className="flex flex-col items-center gap-2 flex-1 z-10">
-                        <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
-                          {match.team_a?.logo_url ? (
-                            <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <Trophy className="w-6 h-6 text-slate-200" />
-                          )}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-tight text-slate-900 text-center leading-tight max-w-[80px]">
-                          {match.team_a?.name || 'TBD'}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col items-center z-10 px-4">
-                        <div className="flex items-center gap-3">
-                          <span className={cn("text-3xl font-black italic tracking-tighter", match.status === 'completed' && match.team_a_score > match.team_b_score ? "text-orange-600" : "text-slate-900")}>
-                            {match.team_a_score}
-                          </span>
-                          <span className="text-slate-200 font-bold">:</span>
-                          <span className={cn("text-3xl font-black italic tracking-tighter", match.status === 'completed' && match.team_b_score > match.team_a_score ? "text-orange-600" : "text-slate-900")}>
-                            {match.team_b_score}
+                        <div className="flex flex-col items-center gap-2 flex-1 z-10">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
+                            {match.team_a?.logo_url ? (
+                              <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <Trophy className="w-6 h-6 text-slate-200" />
+                            )}
+                          </div>
+                          <span className="text-[10px] font-black uppercase tracking-tight text-slate-900 text-center leading-tight max-w-[80px]">
+                            {match.team_a?.name || 'TBD'}
                           </span>
                         </div>
-                        <Badge variant="outline" className={cn(
-                          "mt-2 text-[8px] font-black tracking-[0.2em] uppercase border-0 rounded-full px-3",
-                          match.status === 'live' ? "bg-red-50 text-red-600 animate-pulse" : "bg-slate-50 text-slate-400"
-                        )}>
-                          {match.status}
-                        </Badge>
-                      </div>
 
-                      <div className="flex flex-col items-center gap-2 flex-1 z-10">
-                        <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
-                          {match.team_b?.logo_url ? (
-                            <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <Trophy className="w-6 h-6 text-slate-200" />
-                          )}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-tight text-slate-900 text-center leading-tight max-w-[80px]">
-                          {match.team_b?.name || 'TBD'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Middle Row: Status & Number */}
-                    <div className="px-6 py-2 border-y border-slate-50 bg-slate-50/30 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                          {match.match_name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Circle className={cn("w-1.5 h-1.5 fill-current", match.status === 'live' ? "text-red-500" : "text-slate-300")} />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-                          {match.status === 'completed' ? 'Final Result' : match.status === 'live' ? 'In Progress' : 'Scheduled'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Metadata & CTA */}
-                    <div className="p-6 flex items-center justify-between bg-white">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Calendar className="w-3 h-3" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            {format(new Date(match.match_date), 'h:mm a • d MMM')}
-                          </span>
-                        </div>
-                        {match.venue && (
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <MapPin className="w-3 h-3" />
-                            <span className="text-[10px] font-black uppercase tracking-widest truncate max-w-[120px]">
-                              {match.venue}
+                        <div className="flex flex-col items-center z-10 px-4">
+                          <div className="flex items-center gap-3">
+                            <span className={cn("text-3xl font-black italic tracking-tighter", match.status === 'completed' && match.team_a_score > match.team_b_score ? "text-orange-600" : "text-slate-900")}>
+                              {match.team_a_score}
                             </span>
+                            <span className="text-slate-200 font-bold">:</span>
+                            <span className={cn("text-3xl font-black italic tracking-tighter", match.status === 'completed' && match.team_b_score > match.team_a_score ? "text-orange-600" : "text-slate-900")}>
+                              {match.team_b_score}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className={cn(
+                            "mt-2 text-[8px] font-black tracking-[0.2em] uppercase border-0 rounded-full px-3",
+                            match.status === 'live' ? "bg-red-50 text-red-600 animate-pulse" : "bg-slate-50 text-slate-400"
+                          )}>
+                            {match.status}
+                          </Badge>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-2 flex-1 z-10">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
+                            {match.team_b?.logo_url ? (
+                              <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
+                            ) : (
+                              <Trophy className="w-6 h-6 text-slate-200" />
+                            )}
+                          </div>
+                          <span className="text-[10px] font-black uppercase tracking-tight text-slate-900 text-center leading-tight max-w-[80px]">
+                            {match.team_b?.name || 'TBD'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Middle Row: Status & Number */}
+                      <div className="px-6 py-2 border-y border-slate-50 bg-slate-50/30 flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                            {match.match_name || (match.match_number ? `Match #${match.match_number}` : `Match #${match.id.slice(0, 4)}`)}
+                          </span>
+                          {(match.round_name || match.group_name) && (
+                            <span className="text-[8px] font-bold uppercase tracking-[0.1em] text-orange-500/60 leading-none mt-0.5">
+                              {match.round_name}{match.round_name && match.group_name ? ' • ' : ''}{match.group_name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Circle className={cn("w-1.5 h-1.5 fill-current", match.status === 'live' ? "text-red-500" : "text-slate-300")} />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                            {match.status === 'completed' ? 'Final Result' : match.status === 'live' ? 'In Progress' : 'Scheduled'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom Row: Metadata & CTA */}
+                      <div className="p-6 flex items-center justify-between bg-white">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <Calendar className="w-3 h-3" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                              {format(new Date(match.match_date), 'h:mm a • d MMM')}
+                            </span>
+                          </div>
+                          {match.venue && (
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <MapPin className="w-3 h-3" />
+                              <span className="text-[10px] font-black uppercase tracking-widest truncate max-w-[120px]">
+                                {match.venue}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {(isOrganizer || match.created_by === currentUserId) && match.status !== 'completed' ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (match.status === 'live') {
+                                navigate(`/matches/${match.id}/score`);
+                              } else {
+                                const [pA, pB] = await Promise.all([
+                                  supabase.from("players").select("*").eq("team_id", match.team_a_id),
+                                  supabase.from("players").select("*").eq("team_id", match.team_b_id),
+                                ]);
+                                setPlayersForMatch({ teamA: pA.data || [], teamB: pB.data || [] });
+                                setMatchStartDialog({
+                                  open: true,
+                                  matchId: match.id,
+                                  teamAId: match.team_a_id,
+                                  teamBId: match.team_b_id,
+                                  teamAName: match.team_a?.name || '',
+                                  teamBName: match.team_b?.name || '',
+                                });
+                              }
+                            }}
+                            className="px-6 py-2.5 bg-slate-900 hover:bg-orange-600 rounded-full text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                          >
+                            {match.status === 'live' ? 'Scoring' : 'Start'}
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2 text-orange-600">
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                              {match.status === 'completed' ? 'View' : 'Details'}
+                            </span>
+                            <ChevronRight className="w-4 h-4" />
                           </div>
                         )}
                       </div>
-
-                      {(isOrganizer || match.created_by === currentUserId) && match.status !== 'completed' ? (
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (match.status === 'live') {
-                              navigate(`/matches/${match.id}/score`);
-                            } else {
-                              const [pA, pB] = await Promise.all([
-                                supabase.from("players").select("*").eq("team_id", match.team_a_id),
-                                supabase.from("players").select("*").eq("team_id", match.team_b_id),
-                              ]);
-                              setPlayersForMatch({ teamA: pA.data || [], teamB: pB.data || [] });
-                              setMatchStartDialog({
-                                open: true,
-                                matchId: match.id,
-                                teamAId: match.team_a_id,
-                                teamBId: match.team_b_id,
-                                teamAName: match.team_a?.name || '',
-                                teamBName: match.team_b?.name || '',
-                              });
-                            }
-                          }}
-                          className="px-6 py-2.5 bg-slate-900 hover:bg-orange-600 rounded-full text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
-                        >
-                          {match.status === 'live' ? 'Scoring' : 'Start'}
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-2 text-orange-600">
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            {match.status === 'completed' ? 'View' : 'Details'}
-                          </span>
-                          <ChevronRight className="w-4 h-4" />
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* 5️⃣ FIXTURES TAB (ROADMAP & SCHEDULE) */}
-          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0">
-            {matches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                <Trophy className="w-12 h-12 text-slate-200 mb-4" />
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400 text-center px-8 leading-relaxed">
-                  No fixtures generated yet.<br />
-                  <span className="text-[10px] font-medium lowercase">Generate fixtures in the Live tab to see the roadmap.</span>
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto pb-20 no-scrollbar select-none">
-                <div className="flex gap-16 p-8 min-w-max items-start">
-                  {/* Generate Unified Roadmap Columns by Round */}
+          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0" >
+            {/* Fixture Generator Card */}
+            {
+              isOrganizer && matches.length === 0 && (
+                <Card className="mb-6 rounded-[28px] border-2 border-slate-100 shadow-sm overflow-hidden">
+                  <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+                    <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                      <Rocket className="w-4 h-4 text-orange-500" />
+                      Generate Fixtures
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tournament Format</label>
+                      <select
+                        value={fixtureType}
+                        onChange={(e) => setFixtureType(e.target.value)}
+                        className="w-full h-12 px-4 bg-white border-2 border-slate-200 rounded-2xl text-sm font-bold focus:border-orange-500 focus:ring-0 outline-none transition-colors"
+                      >
+                        <option value="League">🏆 League (Round Robin)</option>
+                        <option value="Knockout">⚔️ Knockout (Single Elimination)</option>
+                        <option value="League + Knockout">🏆+⚔️ League + Knockout</option>
+                        <option value="Group + Knockout">👥+⚔️ Group + Knockout</option>
+                      </select>
+                      <p className="text-[10px] text-slate-400">
+                        {fixtureType === 'League' && 'Every team plays every other team once. Best for accuracy.'}
+                        {fixtureType === 'Knockout' && 'Single elimination bracket. Lose once = out. Fast & dramatic.'}
+                        {fixtureType === 'League + Knockout' && 'Round robin first, then top 4 play knockout.'}
+                        {fixtureType === 'Group + Knockout' && 'Teams split into groups, winners advance to knockout.'}
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => handleGenerateFixtures(fixtureType)}
+                      disabled={teams.length < 2 || loading}
+                      className="w-full h-12 bg-orange-600 hover:bg-orange-700 rounded-2xl text-white font-black uppercase tracking-widest text-xs"
+                    >
+                      {loading ? 'Generating...' : `Generate ${fixtureType} Fixtures`}
+                    </Button>
+                    <p className="text-[9px] text-slate-400 text-center">
+                      {teams.length} teams registered • {teams.length < 2 ? 'Need at least 2 teams' : `Will create ${fixtureType === 'League' ? (teams.length * (teams.length - 1)) / 2 : teams.length - 1}+ matches`}
+                    </p>
+                  </CardContent>
+                </Card>
+              )
+            }
+
+            {
+              matches.length === 0 && !isOrganizer ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
+                  <Trophy className="w-12 h-12 text-slate-200 mb-4" />
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400 text-center px-8 leading-relaxed">
+                    No fixtures generated yet.<br />
+                    <span className="text-[10px] font-medium lowercase">Check back later for the match schedule.</span>
+                  </p>
+                </div>
+              ) : matches.length > 0 ? (
+                <div className="space-y-6">
+                  {/* Group matches by round */}
                   {(() => {
-                    // Group matches by index (since round columns not in schema)
-                    const roundsMap: Record<string, Match[]> = { '1': matches };
+                    const roundsMap: Record<string, Match[]> = {};
+                    matches.forEach(m => {
+                      const key = m.round_name || `Round ${m.round_number || 1}`;
+                      if (!roundsMap[key]) roundsMap[key] = [];
+                      roundsMap[key].push(m);
+                    });
 
                     return Object.entries(roundsMap)
-                      .map(([roundKey, roundMatches]) => {
-                        const sortedMatches = [...roundMatches].sort((a, b) => 
-                          new Date(a.match_date).getTime() - new Date(b.match_date).getTime()
-                        );
-                        const isKnockout = tournament?.tournament_type?.toLowerCase() === 'knockout';
+                      .sort((a, b) => {
+                        const aNum = matches.find(m => m.round_name === a[0])?.round_number || 0;
+                        const bNum = matches.find(m => m.round_name === b[0])?.round_number || 0;
+                        return aNum - bNum;
+                      })
+                      .map(([roundName, roundMatches]) => (
+                        <div key={roundName} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                          {/* Round Header */}
+                          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2">
+                            <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.15em]">{roundName}</span>
+                            <span className="text-[9px] text-slate-400 ml-auto">{roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}</span>
+                          </div>
 
-                        return (
-                          <div key={roundKey} className="flex flex-col gap-12 w-80">
-                            {/* Round Header Column */}
-                            <div className="flex items-center gap-3 px-1 mb-4">
-                              <div className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_12px_rgba(249,115,22,0.4)]" />
-                              <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-900">
-                                All Matches
-                              </span>
-                            </div>
-
-                            <div className="flex flex-col gap-12 justify-around h-full min-h-[400px]">
-                              {sortedMatches.map((match) => {
-                                const isMatchLive = match.status === 'live';
-                                const isMatchDone = match.status === 'completed';
+                          {/* Matches List */}
+                          <div className="divide-y divide-slate-50">
+                            {roundMatches
+                              .sort((a, b) => Number(a.match_number) - Number(b.match_number))
+                              .map((match, idx) => {
+                                const isLive = match.status === 'live';
+                                const isDone = match.status === 'completed';
+                                const teamAWon = isDone && match.team_a_score > match.team_b_score;
+                                const teamBWon = isDone && match.team_b_score > match.team_a_score;
 
                                 return (
-                                  <div key={match.id} className="relative group">
-                                    {/* Match Card */}
+                                  <div
+                                    key={match.id}
+                                    onClick={() => navigate(isDone ? `/match-summary/${match.id}` : `/matches/${match.id}/spectate`)}
+                                    className={cn(
+                                      "flex items-center px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors gap-2",
+                                      isLive && "bg-orange-50"
+                                    )}
+                                  >
+                                    {/* Match Number */}
+                                    <div className="w-6 text-center">
+                                      <span className="text-[9px] font-black text-slate-300">#{match.match_number || idx + 1}</span>
+                                    </div>
+
+                                    {/* Team A */}
                                     <div className={cn(
-                                      "bg-white border-2 rounded-[32px] p-6 shadow-sm transition-all duration-500 relative z-10 w-full hover:shadow-2xl hover:-translate-y-2",
-                                      isMatchLive ? "border-orange-500 ring-8 ring-orange-500/5" : "border-slate-100/80"
+                                      "flex-1 flex items-center gap-2 min-w-0",
+                                      teamBWon && "opacity-50"
                                     )}>
-                                      <div className="flex flex-col gap-5">
-                                        {/* Team A Slot */}
-                                        <div className="flex items-center justify-between gap-4">
-                                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                                            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
-                                              {match.team_a?.logo_url ? <img src={match.team_a.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-5 h-5 text-slate-200" />}
-                                            </div>
-                                            <span className={cn(
-                                              "text-xs font-black uppercase tracking-tight truncate",
-                                              isMatchDone && (match.team_a_score > match.team_b_score ? "text-slate-900" : "text-slate-400 font-medium")
-                                            )}>
-                                              {match.team_a?.name || "Winner TBD"}
-                                            </span>
-                                          </div>
-                                          {isMatchDone && (
-                                            <span className="text-sm font-black italic text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">{match.team_a_score}</span>
-                                          )}
-                                        </div>
-
-                                        <div className="flex items-center gap-4 py-1">
-                                          <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-slate-100" />
-                                          <span className="text-[10px] font-black italic text-slate-200 uppercase tracking-widest px-2">VS</span>
-                                          <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-slate-100" />
-                                        </div>
-
-                                        {/* Team B Slot */}
-                                        <div className="flex items-center justify-between gap-4">
-                                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                                            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
-                                              {match.team_b?.logo_url ? <img src={match.team_b.logo_url} className="w-full h-full object-cover" /> : <Trophy className="w-5 h-5 text-slate-200" />}
-                                            </div>
-                                            <span className={cn(
-                                              "text-xs font-black uppercase tracking-tight truncate",
-                                              isMatchDone && (match.team_b_score > match.team_a_score ? "text-slate-900" : "text-slate-400 font-medium")
-                                            )}>
-                                              {match.team_b?.name || "Winner TBD"}
-                                            </span>
-                                          </div>
-                                          {isMatchDone && (
-                                            <span className="text-sm font-black italic text-slate-900 bg-slate-50 px-3 py-1 rounded-xl">{match.team_b_score}</span>
-                                          )}
-                                        </div>
+                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                        {match.team_a?.logo_url ? (
+                                          <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <Trophy className="w-3 h-3 text-slate-300" />
+                                        )}
                                       </div>
+                                      <span className={cn(
+                                        "text-[10px] font-bold truncate",
+                                        teamAWon ? "text-green-600" : "text-slate-700"
+                                      )}>
+                                        {match.team_a?.name || 'TBD'}
+                                      </span>
+                                    </div>
 
-                                      {/* Match Metadata */}
-                                      <div className="mt-6 pt-5 border-t border-slate-50 flex items-center justify-between">
-                                        <div className="flex flex-col gap-0.5">
-                                          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{match.match_name}</span>
-                                        </div>
-                                        {isMatchLive ? (
-                                          <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-[8px] font-black uppercase tracking-widest animate-pulse px-3 py-1 rounded-full">Live Now</Badge>
-                                        ) : match.match_date && (
-                                          <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                                            <Calendar className="w-3 h-3" />
-                                            {new Date(match.match_date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    {/* Score / VS */}
+                                    <div className="w-16 text-center flex-shrink-0">
+                                      {isDone ? (
+                                        <div className="flex items-center justify-center gap-1">
+                                          <span className={cn("text-xs font-black", teamAWon ? "text-green-600" : "text-slate-400")}>
+                                            {match.team_a_score}
                                           </span>
+                                          <span className="text-[8px] text-slate-300">-</span>
+                                          <span className={cn("text-xs font-black", teamBWon ? "text-green-600" : "text-slate-400")}>
+                                            {match.team_b_score}
+                                          </span>
+                                        </div>
+                                      ) : isLive ? (
+                                        <Badge className="bg-red-500 text-white text-[7px] px-1.5 py-0 animate-pulse">LIVE</Badge>
+                                      ) : (
+                                        <span className="text-[9px] font-bold text-slate-300">VS</span>
+                                      )}
+                                    </div>
+
+                                    {/* Team B */}
+                                    <div className={
+                                      cn(
+                                        "flex-1 flex items-center gap-2 min-w-0 justify-end",
+                                        teamAWon && "opacity-50"
+                                      )
+                                    }>
+                                      <span className={cn(
+                                        "text-[10px] font-bold truncate text-right",
+                                        teamBWon ? "text-green-600" : "text-slate-700"
+                                      )}>
+                                        {match.team_b?.name || 'TBD'}
+                                      </span>
+                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                        {match.team_b?.logo_url ? (
+                                          <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <Trophy className="w-3 h-3 text-slate-300" />
                                         )}
                                       </div>
                                     </div>
 
-                                    {/* Bracket Connector Lines - Not available without knockout bracket columns */}
+                                    {/* Arrow */}
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
                                   </div>
                                 );
                               })}
-                            </div>
                           </div>
-                        );
-                      });
+                        </div>
+                      ));
                   })()}
                 </div>
-              </div>
-            )}
+              ) : null}
           </TabsContent>
 
           {/* 5️⃣ TEAMS TAB */}
-          <TabsContent value="teams" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0">
+          <TabsContent value="teams" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0" >
             {isOrganizer && (
               <div className="flex justify-between items-center px-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manage Contenders</span>
@@ -961,54 +1085,64 @@ const TournamentDetail = () => {
               </div>
             )}
 
-            {teams.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
-                  <UserPlus className="w-8 h-8" />
-                </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">No teams registered yet</p>
-                {isOrganizer && (
-                  <p className="text-[9px] font-medium text-slate-400 mt-2">Add teams to generate match schedules automatically</p>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
-                {teams.map((team) => (
-                  <div
-                    key={team.id}
-                    onClick={() => navigate(`/teams/${team.teams.id}`)}
-                    className="bg-white p-6 rounded-[32px] border-2 border-slate-100 flex items-center justify-between shadow-sm hover:border-orange-500/20 hover:shadow-md transition-all cursor-pointer active:scale-95"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
-                        {team.teams.logo_url ? (
-                          <img src={team.teams.logo_url} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-lg font-black text-slate-200 uppercase">{team.teams.name.charAt(0)}</span>
-                        )}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black italic uppercase tracking-tight text-slate-900">{team.teams.name}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Roster: {team.teams.captain_name} (CPT)</span>
-                      </div>
-                    </div>
-                    {isOrganizer && (
-                      <Button variant="ghost" size="sm" onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedTeamId(team.teams.id);
-                        setAddPlayerOpen(true);
-                      }} className="text-orange-600 hover:bg-orange-50 rounded-xl">
-                        Add Player
-                      </Button>
-                    )}
+            {
+              teams.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
+                    <UserPlus className="w-8 h-8" />
                   </div>
-                ))}
-              </div>
-            )}
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">No teams registered yet</p>
+                  {isOrganizer && (
+                    <p className="text-[9px] font-medium text-slate-400 mt-2">Add teams to generate match schedules automatically</p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+                  {teams.map((team) => (
+                    <div
+                      key={team.id}
+                      onClick={() => navigate(`/teams/${team.teams.id}`)}
+                      className="bg-white p-6 rounded-[32px] border-2 border-slate-100 flex items-center justify-between shadow-sm hover:border-orange-500/20 hover:shadow-md transition-all cursor-pointer active:scale-95"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
+                          {team.teams.logo_url ? (
+                            <img src={team.teams.logo_url} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-black text-slate-200 uppercase">{team.teams.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-black italic uppercase tracking-tight text-slate-900">{team.teams.name}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Roster: {team.teams.captain_name} (CPT)</span>
+                        </div>
+                      </div>
+                      {isOrganizer && (
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTeamId(team.teams.id);
+                            setAddPlayerOpen(true);
+                          }} className="text-orange-600 hover:bg-orange-50 rounded-xl">
+                            Add Player
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveTeam(team.id, team.teams.name);
+                          }} className="text-red-600 hover:bg-red-50 rounded-xl p-2">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
+            }
           </TabsContent>
 
           {/* 5️⃣ POINTS TAB (CLEAN TABLE) */}
-          <TabsContent value="points" className="mt-6 focus-visible:outline-none ring-0 border-0">
+          <TabsContent value="points" className="mt-6 focus-visible:outline-none ring-0 border-0" >
             <div className="bg-white rounded-[32px] border-2 border-slate-100 overflow-hidden shadow-sm">
               <Table>
                 <TableHeader className="bg-slate-50/50">
@@ -1064,7 +1198,7 @@ const TournamentDetail = () => {
           </TabsContent>
 
           {/* 6️⃣ STATS TAB (MINIMAL MVP) */}
-          <TabsContent value="stats" className="mt-6 space-y-4 focus-visible:outline-none ring-0 border-0">
+          <TabsContent value="stats" className="mt-6 space-y-4 focus-visible:outline-none ring-0 border-0" >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Top Raider */}
               <div className="bg-white p-6 rounded-[32px] border-2 border-slate-100 relative overflow-hidden group hover:border-orange-500/20 transition-all">
@@ -1132,7 +1266,7 @@ const TournamentDetail = () => {
           </TabsContent>
 
           {/* 7️⃣ INFO TAB (CONSOLIDATED) */}
-          <TabsContent value="info" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0">
+          <TabsContent value="info" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0" >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
               {/* Format & Rules */}
               <div className="bg-white p-8 rounded-[32px] border-2 border-slate-100 space-y-6 shadow-sm">
@@ -1279,40 +1413,46 @@ const TournamentDetail = () => {
       </div>
 
       {/* FOOTER DIALOGS */}
-      {selectedTeamId && (
-        <AddPlayerDialog
-          teamId={selectedTeamId}
-          open={addPlayerOpen}
-          setOpen={setAddPlayerOpen}
-          onPlayerAdded={() => {
-            toast({ title: "Success", description: "Player added to team successfully" });
-            fetchTournamentData();
-          }}
-        />
-      )}
+      {
+        selectedTeamId && (
+          <AddPlayerDialog
+            teamId={selectedTeamId}
+            open={addPlayerOpen}
+            setOpen={setAddPlayerOpen}
+            onPlayerAdded={() => {
+              toast({ title: "Success", description: "Player added to team successfully" });
+              fetchTournamentData();
+            }}
+          />
+        )
+      }
 
-      {matchStartDialog && (
-        <MatchStartDialog
-          matchId={matchStartDialog.matchId}
-          teamAId={matchStartDialog.teamAId}
-          teamBId={matchStartDialog.teamBId}
-          teamAName={matchStartDialog.teamAName}
-          teamBName={matchStartDialog.teamBName}
-          playersA={playersForMatch.teamA}
-          playersB={playersForMatch.teamB}
-          open={matchStartDialog.open}
-          onOpenChange={(open) => { if (!open) setMatchStartDialog(null); }}
-        />
-      )}
+      {
+        matchStartDialog && (
+          <MatchStartDialog
+            matchId={matchStartDialog.matchId}
+            teamAId={matchStartDialog.teamAId}
+            teamBId={matchStartDialog.teamBId}
+            teamAName={matchStartDialog.teamAName}
+            teamBName={matchStartDialog.teamBName}
+            playersA={playersForMatch.teamA}
+            playersB={playersForMatch.teamB}
+            open={matchStartDialog.open}
+            onOpenChange={(open) => { if (!open) setMatchStartDialog(null); }}
+          />
+        )
+      }
 
-      {tournament && (
-        <EditTournamentDialog
-          tournament={tournament}
-          open={editTournamentOpen}
-          onOpenChange={setEditTournamentOpen}
-          onSuccess={fetchTournamentData}
-        />
-      )}
+      {
+        tournament && (
+          <EditTournamentDialog
+            tournament={tournament}
+            open={editTournamentOpen}
+            onOpenChange={setEditTournamentOpen}
+            onSuccess={fetchTournamentData}
+          />
+        )
+      }
 
       <BottomNav />
     </div>

@@ -28,6 +28,8 @@ export interface Match {
     is_timer_running?: boolean;
     next_match_id?: string | null;
     is_team_a_winner_slot?: boolean | null;
+    playing_7_a?: string[];
+    playing_7_b?: string[];
 }
 
 export type RaidState = 'IDLE' | 'RAIDING' | 'OUTCOME' | 'CONFIRM';

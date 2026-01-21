@@ -12,10 +12,15 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { handleShare } from "@/lib/share-utils";
+import { TeamStatsComparison } from "@/components/match/TeamStatsComparison";
+import { TeamLineups } from "@/components/match/TeamLineups";
+import { QRCodeSVG } from "qrcode.react";
+import { useBackNavigation } from "@/hooks/useBackNavigation";
 
 const LiveMatch = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const handleBack = useBackNavigation();
   const { toast } = useToast();
 
   // Data State
@@ -31,6 +36,7 @@ const LiveMatch = () => {
     teamA: { raids: 0, tackles: 0, bonus: 0, technical: 0, allOuts: 0 },
     teamB: { raids: 0, tackles: 0, bonus: 0, technical: 0, allOuts: 0 }
   });
+  const [isOrganizer, setIsOrganizer] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -44,6 +50,8 @@ const LiveMatch = () => {
 
   const fetchMatchData = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
       const { data: matchData, error: matchError } = await supabase
         .from("matches")
         .select("*")
@@ -53,6 +61,9 @@ const LiveMatch = () => {
       setMatch(matchData);
       // active_team not in schema, default to A
       setActiveTeam("A");
+
+      // Check if current user is the match creator
+      setIsOrganizer(user?.id === matchData.created_by);
 
       const [tA, tB, pA, pB, evts] = await Promise.all([
         supabase.from("teams").select("*").eq("id", matchData.team_a_id).single(),
@@ -210,7 +221,7 @@ const LiveMatch = () => {
       {/* 3. TOP BAR (Fixed Header) */}
       <div className="h-[60px] border-b border-slate-200 flex items-center justify-between px-4 bg-white z-50 shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/")} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-full transition-colors">
+          <button onClick={() => handleBack(isOrganizer ? '/home' : '/')} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-full transition-colors">
             <ArrowLeft className="h-6 w-6 text-slate-700" />
           </button>
           <div className="flex flex-col">
@@ -341,7 +352,7 @@ const LiveMatch = () => {
         <div className="flex-1 bg-slate-50/50">
           {activeTab === 'timeline' && (
             <div className="p-4 space-y-4">
-              {/* Ongoing Raid Card (Placeholder logic) */}
+              {/* Ongoing Raid Card */}
               {match.is_timer_running && (
                 <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-2xl overflow-hidden border-2 border-red-500 shadow-lg shadow-red-500/20">
                   <div className="bg-white/10 px-4 py-2 flex items-center justify-between">
@@ -356,148 +367,168 @@ const LiveMatch = () => {
                       <Zap className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h4 className="text-white font-black uppercase text-sm tracking-tight"> {activeTeam === 'A' ? teamA.name : teamB.name} Raiding</h4>
+                      <h4 className="text-white font-black uppercase text-sm tracking-tight">{activeTeam === 'A' ? teamA.name : teamB.name} Raiding</h4>
                       <p className="text-white/70 text-xs font-bold animate-pulse">Raider is on court...</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {recentEvents.map((event, idx) => (
-                <div key={event.id} className="relative pl-6 pb-6 last:pb-0">
-                  {/* Timeline Line */}
-                  {idx !== recentEvents.length - 1 && (
-                    <div className="absolute left-[7px] top-4 bottom-0 w-0.5 bg-slate-200" />
-                  )}
-                  {/* Timeline Dot */}
-                  <div className={`absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-white z-10 ${event.points_awarded > 0 ? 'bg-green-500' : 'bg-red-500'}`} />
+              {recentEvents.map((event, idx) => {
+                // Find player names
+                const allPlayers = [...playersA, ...playersB];
+                const raiderName = allPlayers.find(p => p.id === event.raider_id || p.id === event.player_id)?.name || 'Raider';
+                const tacklerName = event.event_data?.tacklerId
+                  ? allPlayers.find(p => p.id === event.event_data.tacklerId)?.name
+                  : null;
+                const defendersOutNames = (event.defender_ids || event.event_data?.action?.defendersOut || [])
+                  .map((id: string) => allPlayers.find(p => p.id === id)?.name)
+                  .filter(Boolean);
+                const isAllOut = event.is_all_out || event.event_data?.action?.isAllOut;
+                const isDOD = event.is_do_or_die;
+                const touchPoints = event.event_data?.action?.touchPoints || event.event_data?.touchPoints || 0;
+                const hasBonus = event.event_data?.action?.bonusPoint || event.event_data?.bonusPoints > 0;
 
-                  <div className={`rounded-2xl p-4 transition-all shadow-sm border border-slate-200 ${event.points_awarded > 0 ? 'bg-white hover:border-green-300' : 'bg-white hover:border-red-300'}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RAID #{recentEvents.length - idx}</span>
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${event.team_id === teamA.id ? 'text-orange-600' : 'text-blue-600'}`}>
-                          {event.team_id === teamA.id ? teamA.name : teamB.name}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-mono font-bold text-slate-500">
-                          {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Half {match.current_half || 1}</span>
-                      </div>
-                    </div>
+                return (
+                  <div key={event.id} className="relative pl-6 pb-6 last:pb-0">
+                    {/* Timeline Line */}
+                    {idx !== recentEvents.length - 1 && (
+                      <div className="absolute left-[7px] top-4 bottom-0 w-0.5 bg-slate-200" />
+                    )}
+                    {/* Timeline Dot */}
+                    <div className={`absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 border-white z-10 ${event.points_awarded > 0 ? 'bg-green-500' : 'bg-red-500'}`} />
 
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${event.points_awarded > 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                        {event.event_type === 'raid' ? <Zap className={`w-5 h-5 ${event.points_awarded > 0 ? 'text-green-600' : 'text-red-600'}`} /> : <Shield className="w-5 h-5 text-blue-600" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-800 leading-tight">
-                          <span className="font-black">
-                            {[...playersA, ...playersB].find(p => p.id === event.player_id)?.name || 'Player'}
+                    <div className={`rounded-2xl p-4 transition-all shadow-sm border border-slate-200 ${event.points_awarded > 0 ? 'bg-white hover:border-green-300' : 'bg-white hover:border-red-300'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RAID #{recentEvents.length - idx}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${event.team_id === teamA.id ? 'text-orange-600' : 'text-blue-600'}`}>
+                            {event.team_id === teamA.id ? teamA.name : teamB.name}
                           </span>
-                          {" "}
-                          {event.points_awarded > 0 ? (
-                            <span className="text-green-600 uppercase tracking-tight ml-1 font-black">SUCCESSFUL (+{event.points_awarded})</span>
-                          ) : (
-                            <span className="text-red-600 uppercase tracking-tight ml-1 font-black">RAIDER OUT</span>
-                          )}
-                        </p>
-                        {event.event_data && (
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-mono font-bold text-slate-500">
+                            {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Half {event.event_data?.half || match.current_half || 1}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${event.points_awarded > 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                          {event.event_type === 'raid' ? <Zap className={`w-5 h-5 ${event.points_awarded > 0 ? 'text-green-600' : 'text-red-600'}`} /> : <Shield className="w-5 h-5 text-blue-600" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-800 leading-tight">
+                            <span className="font-black">{raiderName}</span>
+                            {" "}
+                            {event.event_type === 'tackle' || event.points_awarded === 0 ? (
+                              <span className="text-red-600 uppercase tracking-tight ml-1 font-black">
+                                TACKLED {tacklerName ? `by ${tacklerName}` : 'OUT'}
+                              </span>
+                            ) : (
+                              <span className="text-green-600 uppercase tracking-tight ml-1 font-black">
+                                SUCCESSFUL (+{event.points_awarded})
+                              </span>
+                            )}
+                          </p>
+
+                          {/* Details */}
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {event.event_data.touchPoints > 0 && <span className="text-[10px] font-bold text-slate-500 px-2 py-0.5 bg-slate-100 rounded-full">• {event.event_data.touchPoints} touch points</span>}
-                            {event.event_data.bonusPoints > 0 && <span className="text-[10px] font-bold text-orange-600 px-2 py-0.5 bg-orange-50 rounded-full">• Bonus point</span>}
+                            {touchPoints > 0 && (
+                              <span className="text-[10px] font-bold text-slate-500 px-2 py-0.5 bg-slate-100 rounded-full">
+                                • {touchPoints} touch{touchPoints > 1 ? 'es' : ''}
+                              </span>
+                            )}
+                            {hasBonus && (
+                              <span className="text-[10px] font-bold text-orange-600 px-2 py-0.5 bg-orange-50 rounded-full">
+                                • Bonus
+                              </span>
+                            )}
+                            {isDOD && (
+                              <span className="text-[10px] font-bold text-purple-600 px-2 py-0.5 bg-purple-50 rounded-full">
+                                • Do-or-Die
+                              </span>
+                            )}
+                            {isAllOut && (
+                              <span className="text-[10px] font-bold text-red-600 px-2 py-0.5 bg-red-50 rounded-full">
+                                • ALL OUT (+2)
+                              </span>
+                            )}
                           </div>
-                        )}
+
+                          {/* Show defenders who went out */}
+                          {defendersOutNames.length > 0 && (
+                            <p className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-blue-400" />
+                              Out: {defendersOutNames.join(', ')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {activeTab === 'lineups' && (
-            <div className="p-4 space-y-6">
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Users className="w-4 h-4 text-orange-500" /> Lineups Control
-                  </h3>
-                  <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button className="px-3 py-1 text-[10px] font-bold bg-white rounded shadow-sm text-slate-900">{teamA.name}</button>
-                    <button className="px-3 py-1 text-[10px] font-bold text-slate-500">{teamB.name}</button>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest border-b border-slate-100 pb-2">On Court (7)</p>
-                  {playersA.slice(0, 7).map(p => (
-                    <div key={p.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isPlayerOut(p.id) ? 'bg-slate-50 border-slate-100 opacity-60' : 'bg-white border-slate-200'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${isPlayerOut(p.id) ? 'bg-slate-200 text-slate-400' : 'bg-orange-100 text-orange-600'}`}>
-                          {p.jersey_number || '0'}
-                        </div>
-                        <div>
-                          <p className={`text-xs font-black uppercase tracking-tight ${isPlayerOut(p.id) ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{p.name}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{p.position || 'Player'}</p>
-                        </div>
-                      </div>
-                      {isPlayerOut(p.id) ? (
-                        <div className="bg-red-50 text-red-600 p-1.5 rounded-lg border border-red-100">
-                          <Info className="w-3 h-3" />
-                        </div>
-                      ) : (
-                        <div className="bg-green-50 text-green-600 p-1.5 rounded-lg border border-green-100">
-                          <Activity className="w-3 h-3 shadow-green-500/20" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="p-4">
+              <TeamLineups
+                teamA={{ id: teamA.id, name: teamA.name, logo_url: (teamA as any).logo_url }}
+                teamB={{ id: teamB.id, name: teamB.name, logo_url: (teamB as any).logo_url }}
+                playersA={playersA.map(p => ({
+                  ...p,
+                  isOut: isPlayerOut(p.id),
+                  isCaptain: p.is_captain
+                }))}
+                playersB={playersB.map(p => ({
+                  ...p,
+                  isOut: isPlayerOut(p.id),
+                  isCaptain: p.is_captain
+                }))}
+                events={recentEvents}
+                startersSelectedA={recentEvents.length > 0 && playersA.length >= 7}
+                startersSelectedB={recentEvents.length > 0 && playersB.length >= 7}
+                selectedStarterIdsA={playersA.slice(0, 7).map(p => p.id)}
+                selectedStarterIdsB={playersB.slice(0, 7).map(p => p.id)}
+              />
             </div>
           )}
 
+
           {activeTab === 'stats' && (
-            <div className="p-4 space-y-6">
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-blue-500" /> Team Comparison
-                </h4>
+            <div className="p-4">
+              <TeamStatsComparison
+                teamA={{ name: teamA.name || 'Team A', logo_url: (teamA as any).logo_url }}
+                teamB={{ name: teamB.name || 'Team B', logo_url: (teamB as any).logo_url }}
+                stats={{
+                  teamA: {
+                    raids: recentEvents.filter(e => e.team_id === teamA.id && e.event_type === 'raid').length,
+                    successfulRaids: recentEvents.filter(e => e.team_id === teamA.id && e.event_type === 'raid' && e.points_awarded > 0).length,
+                    touchPoints: stats.teamA.raids,
+                    bonusPoints: stats.teamA.bonus,
+                    tacklePoints: stats.teamA.tackles,
+                    allOuts: stats.teamA.allOuts,
+                  },
+                  teamB: {
+                    raids: recentEvents.filter(e => e.team_id === teamB.id && e.event_type === 'raid').length,
+                    successfulRaids: recentEvents.filter(e => e.team_id === teamB.id && e.event_type === 'raid' && e.points_awarded > 0).length,
+                    touchPoints: stats.teamB.raids,
+                    bonusPoints: stats.teamB.bonus,
+                    tacklePoints: stats.teamB.tackles,
+                    allOuts: stats.teamB.allOuts,
+                  },
+                  half1: { teamA: match.team_a_score, teamB: match.team_b_score },
+                  half2: { teamA: 0, teamB: 0 }
+                }}
+                totalScoreA={match.team_a_score || 0}
+                totalScoreB={match.team_b_score || 0}
+              />
 
-                <div className="space-y-6">
-                  {[
-                    { label: 'Total Raids', a: recentEvents.filter(e => e.team_id === teamA.id && e.event_type === 'raid').length, b: recentEvents.filter(e => e.team_id === teamB.id && e.event_type === 'raid').length, color: 'bg-orange-500' },
-                    { label: 'Successful Raids', a: stats.teamA.raids, b: stats.teamB.raids, color: 'bg-green-500' },
-                    { label: 'Touch Points', a: stats.teamA.raids, b: stats.teamB.raids, color: 'bg-blue-500' },
-                    { label: 'Bonus Points', a: stats.teamA.bonus, b: stats.teamB.bonus, color: 'bg-yellow-500' },
-                    { label: 'Tackle Points', a: stats.teamA.tackles, b: stats.teamB.tackles, color: 'bg-purple-500' },
-                    { label: 'All-Outs', a: stats.teamA.allOuts, b: stats.teamB.allOuts, color: 'bg-red-500' }
-                  ].map((row, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                        <span className="text-orange-600">{row.a}</span>
-                        <span className="text-slate-400">{row.label}</span>
-                        <span className="text-blue-600">{row.b}</span>
-                      </div>
-                      <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-slate-100">
-                        <div
-                          className={`${row.color} h-full transition-all duration-1000 shadow-[0_0_8px_rgba(0,0,0,0.1)]`}
-                          style={{ width: `${(row.a / (row.a + row.b || 1)) * 100}%` }}
-                        />
-                        <div
-                          className={`${row.color} h-full transition-all duration-1000 opacity-40`}
-                          style={{ width: `${(row.b / (row.a + row.b || 1)) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              {/* Top Performers */}
+              <div className="grid grid-cols-2 gap-4 mt-6">
                 {topRaider && (
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 border-l-4 border-l-orange-500">
                     <div className="flex items-center gap-2 mb-3">

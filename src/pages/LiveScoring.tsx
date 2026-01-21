@@ -39,6 +39,8 @@ const LiveScoring = () => {
   const [teamB, setTeamB] = useState<Team | null>(null);
   const [playersA, setPlayersA] = useState<Player[]>([]);
   const [playersB, setPlayersB] = useState<Player[]>([]);
+  const [playing7A, setPlaying7A] = useState<string[]>([]);
+  const [playing7B, setPlaying7B] = useState<string[]>([]);
 
   // --- Game State ---
   const [activeTeam, setActiveTeam] = useState<"A" | "B">("A");
@@ -468,14 +470,35 @@ const LiveScoring = () => {
       if (matchError) throw matchError;
       setMatch(matchData);
 
+      // Read match settings if available
+      const matchSettings = (matchData as any).settings;
+      if (matchSettings) {
+        const halfDurationSec = (matchSettings.half_duration || 20) * 60;
+        setSettings(prev => ({
+          ...prev,
+          halfDuration: halfDurationSec,
+          raidDuration: matchSettings.raid_timer || 30,
+          intervalDuration: (matchSettings.halftime_break || 5) * 60,
+        }));
+        // Set initial timer to saved half duration (if not already running)
+        if (matchData.status !== 'live') {
+          setMatchTimer(halfDurationSec);
+          setRaidTimer(matchSettings.raid_timer || 30);
+        }
+      }
+
       // Initialize state from existing match data (persistence)
       if (matchData.status === 'live' || matchData.status === 'completed') {
         const m = matchData as any;
         setHasMatchStarted(true);
-        setMatchTimer(m.current_timer ?? 1200);
+        // Use saved current_timer if available, otherwise use settings
+        const halfDurationSec = (matchSettings?.half_duration || 20) * 60;
+        setMatchTimer(m.current_timer ?? halfDurationSec);
         setHalf(m.current_half ?? 1);
         setOutPlayers(m.out_player_ids || []);
         setActiveTeam((m.active_team as "A" | "B") || "A");
+        setPlaying7A(m.playing_7_a || []);
+        setPlaying7B(m.playing_7_b || []);
         // For live matches, always start the timer (auto-resume)
         if (matchData.status === 'live') {
           setIsTimerRunning(true);
@@ -698,21 +721,13 @@ const LiveScoring = () => {
   };
 
   const handleConfirmSubstitution = async (activePlayerId: string, benchPlayerId: string) => {
-    const teamPlayers = substitutionTeam === "A" ? playersA : playersB;
-    const setTeamPlayers = substitutionTeam === "A" ? setPlayersA : setPlayersB;
+    const isTeamA = substitutionTeam === "A";
+    const playing7 = isTeamA ? playing7A : playing7B;
+    const setPlaying7 = isTeamA ? setPlaying7A : setPlaying7B;
 
-    const activeIndex = teamPlayers.findIndex(p => p.id === activePlayerId);
-    const benchIndex = teamPlayers.findIndex(p => p.id === benchPlayerId);
-
-    if (activeIndex === -1 || benchIndex === -1) return;
-
-    // Create new array
-    const newPlayers = [...teamPlayers];
-
-    // Swap
-    [newPlayers[activeIndex], newPlayers[benchIndex]] = [newPlayers[benchIndex], newPlayers[activeIndex]];
-
-    setTeamPlayers(newPlayers);
+    // Update locally
+    const nextPlaying7 = playing7.map(id => id === activePlayerId ? benchPlayerId : id);
+    setPlaying7(nextPlaying7);
 
     // Handle Out Status Transfer
     let nextOutPlayers = [...outPlayers];
@@ -724,9 +739,13 @@ const LiveScoring = () => {
 
     // Sync to DB
     if (match) {
-      await (supabase.from("matches") as any).update({
+      const updateData: any = {
         out_player_ids: nextOutPlayers
-      }).eq("id", match.id);
+      };
+      if (isTeamA) updateData.playing_7_a = nextPlaying7;
+      else updateData.playing_7_b = nextPlaying7;
+
+      await (supabase.from("matches") as any).update(updateData).eq("id", match.id);
     }
   };
 
@@ -1301,8 +1320,10 @@ const LiveScoring = () => {
       />
 
       <PlayersArea
-        playersA={playersA}
-        playersB={playersB}
+        playersA={playersA.filter(p => playing7A.includes(p.id)).sort((a, b) => playing7A.indexOf(a.id) - playing7A.indexOf(b.id))}
+        playersB={playersB.filter(p => playing7B.includes(p.id)).sort((a, b) => playing7B.indexOf(a.id) - playing7B.indexOf(b.id))}
+        playing7A={playing7A}
+        playing7B={playing7B}
         activeTeam={activeTeam}
         selectedRaiderId={selectedRaiderId}
         outPlayers={outPlayers}
@@ -1382,8 +1403,14 @@ const LiveScoring = () => {
         isOpen={substitutionOpen}
         onClose={() => setSubstitutionOpen(false)}
         teamName={substitutionTeam === "A" ? teamA.name : teamB.name}
-        activePlayers={(substitutionTeam === "A" ? playersA : playersB).slice(0, 7)}
-        benchPlayers={(substitutionTeam === "A" ? playersA : playersB).slice(7)}
+        activePlayers={substitutionTeam === "A"
+          ? playersA.filter(p => playing7A.includes(p.id)).sort((a, b) => playing7A.indexOf(a.id) - playing7A.indexOf(b.id))
+          : playersB.filter(p => playing7B.includes(p.id)).sort((a, b) => playing7B.indexOf(a.id) - playing7B.indexOf(b.id))
+        }
+        benchPlayers={substitutionTeam === "A"
+          ? playersA.filter(p => !playing7A.includes(p.id))
+          : playersB.filter(p => !playing7B.includes(p.id))
+        }
         onConfirm={handleConfirmSubstitution}
       />
 

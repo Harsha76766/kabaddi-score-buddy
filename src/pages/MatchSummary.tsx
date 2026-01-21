@@ -12,10 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from "@/components/ui/separator";
 import * as htmlToImage from "html-to-image";
 import { handleShare } from "@/lib/share-utils";
+import { TeamStatsComparison } from "@/components/match/TeamStatsComparison";
+import { useBackNavigation } from "@/hooks/useBackNavigation";
 
 const MatchSummary = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const handleBack = useBackNavigation();
   const { toast } = useToast();
   const summaryRef = useRef<HTMLDivElement>(null);
   const [match, setMatch] = useState<any>(null);
@@ -249,8 +252,8 @@ const MatchSummary = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      <div className="min-h-screen bg-[#050508] flex items-center justify-center">
+        <div className="animate-spin rounded-xl h-12 w-12 border-4 border-orange-500 border-t-transparent shadow-[0_0_20px_rgba(249,115,22,0.3)]"></div>
       </div>
     );
   }
@@ -262,59 +265,61 @@ const MatchSummary = () => {
   const loserScore = isWinnerA ? match?.team_b_score : match?.team_a_score;
 
   return (
-    <div ref={summaryRef} className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
+    <div ref={summaryRef} className="min-h-screen bg-[#050508] font-sans text-white pb-32">
       <div className="max-w-xl mx-auto">
 
         {/* HEADER SECTION */}
-        <div className="bg-white p-6 pb-12 rounded-b-[48px] shadow-sm border-b border-slate-100 flex flex-col items-center text-center gap-6">
-          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0 text-[11px] font-black uppercase tracking-[0.2em] px-4 h-7 gap-2">
+        <div className="bg-[#050508] p-6 pb-12 rounded-b-[48px] border-b border-white/5 flex flex-col items-center text-center gap-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 blur-[80px] -mr-32 -mt-32"></div>
+
+          <Badge className="bg-green-500/10 text-green-500 border border-green-500/20 text-[10px] font-black uppercase tracking-[0.2em] px-4 h-7 gap-2">
             <CheckCircle2 className="w-3 h-3" /> Match Completed
           </Badge>
 
-          <div className="flex items-center justify-between w-full px-4 gap-4">
+          <div className="flex items-center justify-between w-full px-2 gap-4">
             {/* Team A */}
-            <div className={`flex flex-col items-center gap-3 p-6 rounded-[32px] flex-1 transition-all ${isWinnerA ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl shadow-orange-500/20 scale-105' : 'bg-slate-50 text-slate-400'}`}>
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/30">
-                <span className="text-2xl font-black">{teamA?.name?.charAt(0)}</span>
+            <div className={`flex flex-col items-center gap-4 p-6 rounded-[32px] flex-1 transition-all ${isWinnerA ? 'bg-orange-500 text-white shadow-[0_0_40px_rgba(249,115,22,0.2)] scale-105 border border-orange-400/50' : 'bg-white/5 text-neutral-500 border border-white/5'}`}>
+              <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-xl border border-white/20">
+                <span className="text-2xl font-black italic">{teamA?.name?.charAt(0)}</span>
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">{teamA?.name}</span>
-                <span className="text-5xl font-black tracking-tighter">{match?.team_a_score}</span>
-                {isWinnerA && <Badge className="bg-white/20 text-white border-0 text-[8px] mt-2 font-black uppercase h-5">🏆 Winner</Badge>}
+                <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 truncate max-w-[80px]">{teamA?.name}</span>
+                <span className="text-5xl font-black tracking-tighter italic">{match?.team_a_score}</span>
+                {isWinnerA && <Badge className="bg-white/20 text-white border-0 text-[7px] mt-3 font-black uppercase h-5 tracking-widest">🏆 WINNER</Badge>}
               </div>
             </div>
 
-            <div className="text-2xl font-black text-slate-200 italic">VS</div>
+            <div className="text-2xl font-black text-white/5 italic">VS</div>
 
             {/* Team B */}
-            <div className={`flex flex-col items-center gap-3 p-6 rounded-[32px] flex-1 transition-all ${isWinnerB ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl shadow-orange-500/20 scale-105' : 'bg-slate-50 text-slate-400'}`}>
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/30">
-                <span className="text-2xl font-black">{teamB?.name?.charAt(0)}</span>
+            <div className={`flex flex-col items-center gap-4 p-6 rounded-[32px] flex-1 transition-all ${isWinnerB ? 'bg-orange-500 text-white shadow-[0_0_40px_rgba(249,115,22,0.2)] scale-105 border border-orange-400/50' : 'bg-white/5 text-neutral-500 border border-white/5'}`}>
+              <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-xl border border-white/20">
+                <span className="text-2xl font-black italic">{teamB?.name?.charAt(0)}</span>
               </div>
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">{teamB?.name}</span>
-                <span className="text-5xl font-black tracking-tighter">{match?.team_b_score}</span>
-                {isWinnerB && <Badge className="bg-white/20 text-white border-0 text-[8px] mt-2 font-black uppercase h-5">🏆 Winner</Badge>}
+                <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60 mb-1 truncate max-w-[80px]">{teamB?.name}</span>
+                <span className="text-5xl font-black tracking-tighter italic">{match?.team_b_score}</span>
+                {isWinnerB && <Badge className="bg-white/20 text-white border-0 text-[7px] mt-3 font-black uppercase h-5 tracking-widest">🏆 WINNER</Badge>}
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-black uppercase tracking-tighter text-orange-600 flex items-center gap-2 justify-center">
-              <Trophy className="w-6 h-6" /> {winner ? `${winner.name} won by ${winnerScore - loserScore} pts` : "Match Tied"}
+            <h2 className="text-2xl font-black uppercase tracking-tighter text-orange-500 flex items-center gap-3 justify-center italic">
+              <Trophy className="w-6 h-6 drop-shadow-[0_0_10px_rgba(249,115,22,0.5)]" /> {winner ? `${winner.name} won by ${winnerScore - loserScore} pts` : "Match Tied"}
             </h2>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-              <div className="flex items-center gap-2 text-slate-400">
-                <Calendar className="w-3 h-3" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">{matchDate}</span>
+              <div className="flex items-center gap-2 text-neutral-500">
+                <Calendar className="w-3 h-3 text-orange-500/50" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em]">{matchDate}</span>
               </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <Timer className="w-3 h-3" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">{matchDuration}</span>
+              <div className="flex items-center gap-2 text-neutral-500">
+                <Timer className="w-3 h-3 text-orange-500/50" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em]">{matchDuration}</span>
               </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <MapPin className="w-3 h-3" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">{match?.venue || tournament?.ground || "Main Arena"}{tournament?.city ? `, ${tournament.city}` : ""}</span>
+              <div className="flex items-center gap-2 text-neutral-500">
+                <MapPin className="w-3 h-3 text-orange-500/50" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em]">{match?.venue || tournament?.ground || "Main Arena"}{tournament?.city ? `, ${tournament.city}` : ""}</span>
               </div>
             </div>
           </div>
@@ -323,41 +328,41 @@ const MatchSummary = () => {
         {/* PERFORMANCE CARDS */}
         <div className="px-6 py-8 space-y-6">
           {mvp && (
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[40px] p-8 shadow-2xl relative overflow-hidden group">
+            <div className="bg-[#0A0A0E] border border-white/5 rounded-[40px] p-8 shadow-2xl relative overflow-hidden group">
               {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 blur-[80px] -mr-32 -mt-32" />
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 blur-[80px] -ml-32 -mb-32" />
+              <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 blur-[80px] -mr-32 -mt-32 opacity-50" />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 blur-[80px] -ml-32 -mb-32 opacity-50" />
 
               <div className="relative z-10 flex flex-col items-center text-center gap-6">
                 <div className="flex flex-col items-center gap-2">
-                  <Badge className="bg-orange-600 text-white border-0 px-4 py-1 text-[9px] font-black uppercase tracking-[0.2em] rounded-full shadow-lg shadow-orange-900/40">
-                    🌟 Player of the Match
+                  <Badge className="bg-orange-500 text-white border-0 px-4 py-1.5 text-[8px] font-black uppercase tracking-[0.3em] rounded-full shadow-[0_0_20px_rgba(249,115,22,0.3)]">
+                    🌟 MVP OF THE MATCH
                   </Badge>
-                  <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">{mvp.name}</h3>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{mvp.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
+                  <h3 className="text-3xl font-black text-white uppercase tracking-tighter leading-none italic mt-2">{mvp.name}</h3>
+                  <span className="text-[9px] font-black text-neutral-500 uppercase tracking-[0.3em] mt-1">{mvp.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
                 </div>
 
-                <div className="w-24 h-24 rounded-[32px] bg-gradient-to-tr from-orange-500 to-orange-400 p-1 shadow-2xl relative group-hover:scale-110 transition-transform duration-500">
-                  <div className="w-full h-full rounded-[28px] bg-slate-900 flex items-center justify-center overflow-hidden border border-white/10">
-                    <User className="w-12 h-12 text-white/20" />
+                <div className="w-24 h-24 rounded-[32px] bg-orange-500 p-0.5 shadow-2xl relative group-hover:scale-110 transition-transform duration-500">
+                  <div className="w-full h-full rounded-[30px] bg-[#050508] flex items-center justify-center overflow-hidden border border-white/10">
+                    <User className="w-10 h-10 text-neutral-800" />
                   </div>
                   <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-xl">
                     <Trophy className="w-5 h-5 text-orange-600" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 w-full gap-4 pt-4 border-t border-white/5">
+                <div className="grid grid-cols-3 w-full gap-4 pt-6 border-t border-white/5">
                   <div className="flex flex-col gap-1">
-                    <span className="text-2xl font-black text-white">{mvp.totalPoints}</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Total Pts</span>
+                    <span className="text-2xl font-black text-white italic">{mvp.totalPoints}</span>
+                    <span className="text-[7px] font-black uppercase tracking-widest text-neutral-600">TOTAL PTS</span>
                   </div>
                   <div className="flex flex-col gap-1 border-x border-white/5">
-                    <span className="text-2xl font-black text-orange-500">{mvp.raidPts}</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Raid</span>
+                    <span className="text-2xl font-black text-orange-500 italic">{mvp.raidPts}</span>
+                    <span className="text-[7px] font-black uppercase tracking-widest text-neutral-600">RAID</span>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-2xl font-black text-blue-500">{mvp.tacklePts}</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Tackle</span>
+                    <span className="text-2xl font-black text-blue-500 italic">{mvp.tacklePts}</span>
+                    <span className="text-[7px] font-black uppercase tracking-widest text-neutral-600">TACKLE</span>
                   </div>
                 </div>
               </div>
@@ -711,43 +716,22 @@ const MatchSummary = () => {
             </TabsContent>
 
             <TabsContent value="stats" className="space-y-4 px-2">
-              <Card className="bg-white border-slate-100 shadow-sm rounded-3xl overflow-hidden">
-                <CardHeader className="pb-2 border-b border-slate-50 bg-slate-50/30">
-                  <CardTitle className="text-slate-900 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-orange-500" /> Team Comparison
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-8">
-                  {[
-                    { label: "Total Raids", a: stats.teamA.raids, b: stats.teamB.raids, color: "bg-orange-500" },
-                    { label: "Successful Raids", a: stats.teamA.successfulRaids, b: stats.teamB.successfulRaids, color: "bg-green-500" },
-                    { label: "Tackle Points", a: stats.teamA.tacklePoints, b: stats.teamB.tacklePoints, color: "bg-blue-600" },
-                    { label: "Empty Raids", a: stats.teamA.emptyRaids, b: stats.teamB.emptyRaids, color: "bg-slate-300" },
-                    { label: "All Outs Inflicted", a: stats.teamA.allOuts, b: stats.teamB.allOuts, color: "bg-purple-600" },
-                  ].map((item, idx) => (
-                    <div key={idx} className="space-y-2">
-                      <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em]">
-                        <span className="text-red-400">{item.a}</span>
-                        <span className="text-slate-400">{item.label}</span>
-                        <span className="text-blue-400">{item.b}</span>
-                      </div>
-                      <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
-                        <div className={`${item.color} transition-all duration-1000 border-r border-white/20`} style={{ width: `${(item.a / (item.a + item.b || 1)) * 100}%` }} />
-                        <div className={`${item.color} opacity-30 transition-all duration-1000`} style={{ width: `${(item.b / (item.a + item.b || 1)) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+              <TeamStatsComparison
+                teamA={{ name: teamA?.name || 'Team A', logo_url: teamA?.logo_url }}
+                teamB={{ name: teamB?.name || 'Team B', logo_url: teamB?.logo_url }}
+                stats={stats}
+                totalScoreA={match?.team_a_score || 0}
+                totalScoreB={match?.team_b_score || 0}
+              />
             </TabsContent>
           </Tabs>
         </div>
 
         {/* BOTTOM ACTION BAR */}
-        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-4 flex gap-4 z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-[#050508]/80 backdrop-blur-2xl border-t border-white/5 px-6 py-5 flex gap-4 z-50 max-w-xl mx-auto">
           <Button
             variant="outline"
-            className="flex-1 rounded-2xl h-12 border-slate-100 bg-white text-[10px] font-black uppercase tracking-widest gap-2"
+            className="flex-1 rounded-[20px] h-14 border-white/10 bg-white/5 text-white text-[9px] font-black uppercase tracking-[0.2em] gap-3 active:scale-95 transition-all hover:bg-white/10"
             onClick={() => {
               handleShare({
                 title: `Match Result: ${teamA?.name} vs ${teamB?.name}`,
@@ -756,20 +740,20 @@ const MatchSummary = () => {
               });
             }}
           >
-            <Share2 className="w-4 h-4 text-orange-600" /> Share
+            <Share2 className="w-4 h-4 text-orange-500" /> Share
           </Button>
           <Button
             variant="outline"
             onClick={handleDownload}
-            className="w-12 h-12 rounded-2xl border-slate-100 bg-white flex items-center justify-center p-0 hover:bg-slate-50 active:scale-95 transition-all"
+            className="w-14 h-14 rounded-[20px] border-white/10 bg-white/5 flex items-center justify-center p-0 hover:bg-white/10 active:scale-95 transition-all group"
           >
-            <Download className="w-4 h-4 text-orange-600" />
+            <Download className="w-4 h-4 text-orange-500 group-hover:translate-y-0.5 transition-transform" />
           </Button>
           <Button
-            onClick={() => navigate("/")}
-            className="flex-1 rounded-2xl h-12 bg-slate-900 border-0 text-white text-[10px] font-black uppercase tracking-widest gap-2 shadow-xl shadow-slate-900/20"
+            onClick={() => navigate("/home")}
+            className="flex-1 rounded-[20px] h-14 bg-orange-500 border-0 text-white text-[9px] font-black uppercase tracking-[0.2em] gap-3 shadow-[0_0_30px_rgba(249,115,22,0.3)] active:scale-95 transition-all hover:bg-orange-600"
           >
-            <Home className="w-4 h-4" /> Home
+            <Home className="w-4 h-4" /> Hub
           </Button>
         </div>
 

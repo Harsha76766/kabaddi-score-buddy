@@ -250,36 +250,36 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-20 overflow-x-hidden">
+    <div className="min-h-screen bg-[#050508] text-white pb-20 overflow-x-hidden selection:bg-orange-500/30">
       {/* Header Bar */}
-      <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between z-50">
-        <h1 className="text-lg font-black italic tracking-tighter text-slate-900">{profile?.name || "PROFILE"}</h1>
+      <div className="sticky top-0 bg-[#050508]/90 backdrop-blur-md border-b border-white/5 px-4 py-3 flex items-center justify-between z-50">
+        <h1 className="text-lg font-black italic tracking-tighter text-white">{profile?.name || "PROFILE"}</h1>
         <div className="flex gap-2">
-          <button onClick={() => navigate('/settings')} className="p-2 text-slate-600 hover:text-slate-900"><Settings className="w-5 h-5" /></button>
-          <button onClick={handleLogout} className="p-2 text-red-500 hover:text-red-600"><LogOut className="w-5 h-5" /></button>
+          <button onClick={() => navigate('/settings')} className="p-2 text-neutral-400 hover:text-white transition-colors"><Settings className="w-5 h-5" /></button>
+          <button onClick={handleLogout} className="p-2 text-red-500 hover:text-red-400 transition-colors"><LogOut className="w-5 h-5" /></button>
         </div>
       </div>
 
       {/* DYNAMIC SPORTS HEADER WITH BRANDING ELEMENTS */}
       <div className="relative pt-16 pb-12 px-6 overflow-hidden">
-        {/* Slanted Action Area with Jersey Mesh - Lighter for visibility but still energetic */}
+        {/* Slanted Action Area with Jersey Mesh - Dark variant */}
         <div
-          className="absolute top-0 left-0 w-full h-[90%] bg-slate-50 -z-10 origin-top-left -skew-y-6 translate-y-[-10%] border-b-8 border-slate-100/50"
+          className="absolute top-0 left-0 w-full h-[90%] bg-white/5 -z-10 origin-top-left -skew-y-6 translate-y-[-10%] border-b border-white/5"
           style={{
-            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(0,0,0,0.03) 1px, transparent 0)`,
+            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0)`,
             backgroundSize: '16px 16px'
           }}
         ></div>
 
         {/* HOME PAGE STYLE BACKGROUND ELEMENTS */}
         <div className="absolute top-10 right-[-20px] opacity-[0.03] rotate-12 -z-10">
-          <Trophy className="w-48 h-48 text-slate-900" />
+          <Trophy className="w-48 h-48 text-white" />
         </div>
         <div className="absolute bottom-10 left-[-30px] opacity-[0.03] -rotate-12 -z-10">
-          <Zap className="w-40 h-40 text-slate-900" />
+          <Zap className="w-40 h-40 text-white" />
         </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.02] -z-10">
-          <Swords className="w-64 h-64 text-slate-900" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.01] -z-10">
+          <Swords className="w-64 h-64 text-white" />
         </div>
 
         {/* Glow Accents - Refined for Light Mode */}
@@ -298,7 +298,7 @@ const Profile = () => {
                 fill="transparent"
                 stroke="currentColor"
                 strokeWidth="2"
-                className="text-slate-200"
+                className="text-white/10"
               />
               <circle
                 cx="72"
@@ -310,16 +310,16 @@ const Profile = () => {
                 strokeDasharray={2 * Math.PI * 68}
                 strokeDashoffset={2 * Math.PI * 68 * (1 - playerLevel.progress / 100)}
                 strokeLinecap="round"
-                className="text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+                className="text-orange-500 drop-shadow-[0_0_12px_rgba(249,115,22,0.4)]"
               />
             </svg>
 
             {/* Main Avatar Container */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-28 h-28 rounded-[36px] bg-white p-1.5 shadow-2xl relative overflow-hidden ring-4 ring-slate-50 group-hover:scale-105 transition-transform duration-500">
+              <div className="w-28 h-28 rounded-[36px] bg-[#050508] p-1.5 shadow-2xl relative overflow-hidden ring-1 ring-white/10 group-hover:scale-105 transition-transform duration-500">
                 <Avatar className="w-full h-full rounded-[30px] border-0">
                   <AvatarImage src={profile?.avatar_url} className="object-cover" />
-                  <AvatarFallback className="bg-slate-50 text-slate-400 text-3xl font-black italic">
+                  <AvatarFallback className="bg-neutral-900 text-neutral-500 text-3xl font-black italic">
                     {profile?.name?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -336,33 +336,33 @@ const Profile = () => {
             </div>
 
             {/* Level Badge Hooked to Orbit */}
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-amber-500 text-white px-4 py-1.5 rounded-xl text-[11px] font-black italic uppercase tracking-tighter shadow-xl shadow-amber-500/20 border-2 border-white">
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-orange-500 text-white px-4 py-1.5 rounded-xl text-[11px] font-black italic uppercase tracking-tighter shadow-xl shadow-orange-500/20 border-2 border-[#050508]">
               <Trophy className="w-3 h-3 fill-current" />
               LVL {playerLevel.level}
             </div>
           </div>
 
-          {/* User Identity Info - FIXED VISIBILITY (Dark Slate) */}
+          {/* User Identity Info */}
           <div className="space-y-1">
-            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-slate-900 flex items-center justify-center gap-2 drop-shadow-sm">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white flex items-center justify-center gap-2">
               {profile?.name}
-              <Badge className="bg-slate-900 text-amber-400 hover:bg-slate-800 border-0 text-[10px] h-5 px-2.5 font-black italic tracking-widest shadow-lg">PRO</Badge>
+              <Badge className="bg-gradient-to-r from-orange-500 to-red-600 text-white border-0 text-[10px] h-5 px-2.5 font-black italic tracking-widest shadow-lg shadow-orange-600/20">PRO</Badge>
             </h2>
-            <div className="inline-block px-5 py-1.5 bg-slate-900 rounded-xl shadow-lg border-b-2 border-slate-800">
-              <p className="text-[10px] font-black italic uppercase tracking-[0.4em] text-amber-400">{playerLevel.title}</p>
+            <div className="inline-block px-5 py-1.5 bg-white/5 rounded-xl border border-white/10">
+              <p className="text-[10px] font-black italic uppercase tracking-[0.4em] text-orange-500">{playerLevel.title}</p>
             </div>
           </div>
 
-          {/* Action Stats / XP Info - FIXED VISIBILITY (Dark Slate) */}
+          {/* Action Stats / XP Info */}
           <div className="flex items-center gap-10 pt-2">
             <div className="flex flex-col items-center">
-              <span className="text-3xl font-black italic text-slate-900 leading-none tracking-tight">{totalPoints}</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1.5">TOTAL XP</span>
+              <span className="text-3xl font-black italic text-white leading-none tracking-tight">{totalPoints}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mt-1.5">TOTAL XP</span>
             </div>
-            <div className="w-px h-10 bg-slate-200 rotate-12"></div>
+            <div className="w-px h-10 bg-white/5 rotate-12"></div>
             <div className="flex flex-col items-center">
-              <span className="text-3xl font-black italic text-slate-900 leading-none tracking-tight">{stats.totalMatches}</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1.5">BATTLES</span>
+              <span className="text-3xl font-black italic text-white leading-none tracking-tight">{stats.totalMatches}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mt-1.5">BATTLES</span>
             </div>
           </div>
         </div>
@@ -370,25 +370,25 @@ const Profile = () => {
 
       {/* ATHLETIC STATS GRID */}
       <div className="px-6 -mt-6 relative z-30">
-        <div className="bg-white border-2 border-slate-100 rounded-[32px] p-2 shadow-2xl shadow-slate-900/5">
+        <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-[32px] p-2 shadow-2xl">
           <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-blue-50 transition-all group overflow-hidden relative">
-              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Users className="w-5 h-5 text-blue-600 mb-1.5" />
-              <span className="text-xl font-black italic text-slate-900 leading-none">{stats.followersCount}</span>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Followers</span>
-            </div>
-            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-orange-50 transition-all group overflow-hidden relative">
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-white/5 hover:bg-orange-500/10 transition-all group overflow-hidden relative">
               <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Flame className="w-5 h-5 text-orange-600 mb-1.5 animate-pulse" />
-              <span className="text-xl font-black italic text-slate-900 leading-none">{allRounderScore}</span>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Rating</span>
+              <Users className="w-5 h-5 text-neutral-400 mb-1.5" />
+              <span className="text-xl font-black italic text-white leading-none">{stats.followersCount}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mt-1.5">Followers</span>
             </div>
-            <div className="flex flex-col items-center py-6 rounded-[28px] bg-slate-50/50 hover:bg-amber-50 transition-all group overflow-hidden relative">
-              <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Trophy className="w-5 h-5 text-amber-500 mb-1.5" />
-              <span className="text-xl font-black italic text-slate-900 leading-none">{tournaments.length}</span>
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 mt-1.5">Tourneys</span>
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-white/5 hover:bg-orange-500/10 transition-all group overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Flame className="w-5 h-5 text-orange-500 mb-1.5 animate-pulse" />
+              <span className="text-xl font-black italic text-white leading-none">{allRounderScore}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mt-1.5">Rating</span>
+            </div>
+            <div className="flex flex-col items-center py-6 rounded-[28px] bg-white/5 hover:bg-orange-500/10 transition-all group overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Trophy className="w-5 h-5 text-neutral-400 mb-1.5" />
+              <span className="text-xl font-black italic text-white leading-none">{tournaments.length}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mt-1.5">Tourneys</span>
             </div>
           </div>
         </div>
@@ -397,11 +397,11 @@ const Profile = () => {
       {/* NAVIGATION TABS */}
       <Tabs defaultValue="stats" className="w-full mt-8" onValueChange={setActiveTab}>
         <div className="px-6 flex items-center justify-between mb-6">
-          <TabsList className="bg-slate-100 p-1 rounded-2xl border border-slate-200 h-auto">
-            <TabsTrigger value="stats" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all border-0">Stats</TabsTrigger>
-            <TabsTrigger value="posts" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all border-0">Posts</TabsTrigger>
+          <TabsList className="bg-white/5 p-1 rounded-2xl border border-white/10 h-auto">
+            <TabsTrigger value="stats" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all border-0">Stats</TabsTrigger>
+            <TabsTrigger value="posts" className="rounded-xl px-8 py-2.5 text-[11px] font-black italic uppercase tracking-tighter data-[state=active]:bg-orange-500 data-[state=active]:text-white transition-all border-0">Posts</TabsTrigger>
           </TabsList>
-          <Button variant="ghost" size="icon" className="w-10 h-10 rounded-2xl text-slate-400 hover:text-slate-900 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" className="w-10 h-10 rounded-2xl text-neutral-500 hover:text-white hover:bg-white/5">
             <Edit3 className="w-4 h-4" />
           </Button>
         </div>
@@ -414,7 +414,7 @@ const Profile = () => {
                   <TabsTrigger
                     key={tab}
                     value={tab}
-                    className="p-0 text-[11px] font-black italic uppercase tracking-widest text-slate-400 data-[state=active]:text-slate-900 data-[state=active]:bg-transparent relative after:absolute after:bottom-0 after:left-0 after:w-0 data-[state=active]:after:w-[80%] after:h-1.5 after:bg-amber-500 after:transition-all after:duration-300 pb-3 border-0"
+                    className="p-0 text-[11px] font-black italic uppercase tracking-widest text-neutral-500 data-[state=active]:text-white data-[state=active]:bg-transparent relative after:absolute after:bottom-0 after:left-0 after:w-0 data-[state=active]:after:w-[80%] after:h-1.5 after:bg-orange-500 after:transition-all after:duration-300 pb-3 border-0"
                   >
                     {tab === 'tournaments' ? 'Tourneys' : tab === 'highlights' ? 'Clips' : tab}
                   </TabsTrigger>
@@ -425,35 +425,35 @@ const Profile = () => {
                 {/* 🎯 RAIDER PERFORMANCE GAUGES */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                      <Zap className="w-3 h-3 text-red-600" />
+                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-neutral-500 flex items-center gap-2">
+                      <Zap className="w-3 h-3 text-orange-500" />
                       Raider Performance
                     </h3>
-                    <Badge variant="outline" className="text-[10px] font-black italic border-red-600/20 text-red-600 bg-red-50 px-3">SR: {raidStrikeRate}%</Badge>
+                    <Badge variant="outline" className="text-[10px] font-black italic border-orange-500/20 text-orange-500 bg-orange-500/10 px-3">SR: {raidStrikeRate}%</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-red-500/20 transition-all shadow-sm">
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] group hover:border-orange-500/20 transition-all shadow-sm">
                       <div className="flex justify-between items-end mb-3">
-                        <span className="text-[9px] font-black italic uppercase text-slate-400">Raid Points</span>
-                        <span className="text-2xl font-black italic text-slate-900 leading-none">{stats.raidPoints}</span>
+                        <span className="text-[9px] font-black italic uppercase text-neutral-500">Raid Points</span>
+                        <span className="text-2xl font-black italic text-white leading-none">{stats.raidPoints}</span>
                       </div>
-                      <Progress value={(stats.raidPoints / 500) * 100} className="h-2 bg-slate-100" indicatorClassName="bg-red-600 rounded-full" />
+                      <Progress value={(stats.raidPoints / 500) * 100} className="h-2 bg-white/5" indicatorClassName="bg-orange-600 rounded-full" />
                     </div>
-                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-red-500/20 transition-all shadow-sm">
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] group hover:border-orange-500/20 transition-all shadow-sm">
                       <div className="flex justify-between items-end mb-3">
-                        <span className="text-[9px] font-black italic uppercase text-slate-400">Success Rate</span>
-                        <span className="text-2xl font-black italic text-slate-900 leading-none">{raidStrikeRate}%</span>
+                        <span className="text-[9px] font-black italic uppercase text-neutral-500">Success Rate</span>
+                        <span className="text-2xl font-black italic text-white leading-none">{raidStrikeRate}%</span>
                       </div>
-                      <Progress value={raidStrikeRate} className="h-2 bg-slate-100" indicatorClassName="bg-orange-500 rounded-full" />
+                      <Progress value={raidStrikeRate} className="h-2 bg-white/5" indicatorClassName="bg-orange-500 rounded-full" />
                     </div>
                   </div>
 
-                  {/* RESTORED DETAILED RAIDER GRID */}
+                  {/* RAIDER GRID */}
                   <div className="grid grid-cols-3 gap-3">
                     {[{ l: 'Touch', v: stats.touchPoints }, { l: 'Bonus', v: stats.bonusPoints }, { l: 'S. Raid', v: stats.superRaids }].map((s, i) => (
-                      <div key={i} className="bg-white p-4 rounded-2xl border-2 border-slate-100 text-center hover:bg-red-50/30 transition-colors shadow-sm">
-                        <p className="text-[8px] font-black italic uppercase text-slate-400 mb-1">{s.l}</p>
-                        <p className="text-xl font-black italic text-slate-900">{s.v}</p>
+                      <div key={i} className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center hover:bg-orange-500/10 transition-colors shadow-sm">
+                        <p className="text-[8px] font-black italic uppercase text-neutral-500 mb-1">{s.l}</p>
+                        <p className="text-xl font-black italic text-white">{s.v}</p>
                       </div>
                     ))}
                   </div>
@@ -462,35 +462,35 @@ const Profile = () => {
                 {/* 🛡️ DEFENDER PERFORMANCE GAUGES */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                      <Award className="w-3 h-3 text-blue-600" />
+                    <h3 className="text-[11px] font-black italic uppercase tracking-widest text-neutral-500 flex items-center gap-2">
+                      <Award className="w-3 h-3 text-blue-500" />
                       Defender Performance
                     </h3>
-                    <Badge variant="outline" className="text-[10px] font-black italic border-blue-600/20 text-blue-600 bg-blue-50 px-3">ACC: {tackleSuccessRate}%</Badge>
+                    <Badge variant="outline" className="text-[10px] font-black italic border-blue-500/10 text-blue-500 bg-blue-500/10 px-3">ACC: {tackleSuccessRate}%</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
                       <div className="flex justify-between items-end mb-3">
-                        <span className="text-[9px] font-black italic uppercase text-slate-400">Tackle Points</span>
-                        <span className="text-2xl font-black italic text-slate-900 leading-none">{stats.tacklePoints}</span>
+                        <span className="text-[9px] font-black italic uppercase text-neutral-500">Tackle Points</span>
+                        <span className="text-2xl font-black italic text-white leading-none">{stats.tacklePoints}</span>
                       </div>
-                      <Progress value={(stats.tacklePoints / 250) * 100} className="h-2 bg-slate-100" indicatorClassName="bg-blue-600 rounded-full" />
+                      <Progress value={(stats.tacklePoints / 250) * 100} className="h-2 bg-white/5" indicatorClassName="bg-blue-600 rounded-full" />
                     </div>
-                    <div className="bg-white border-2 border-slate-100 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
+                    <div className="bg-white/5 border border-white/10 p-5 rounded-[32px] group hover:border-blue-500/20 transition-all shadow-sm">
                       <div className="flex justify-between items-end mb-3">
-                        <span className="text-[9px] font-black italic uppercase text-slate-400">Success Rate</span>
-                        <span className="text-2xl font-black italic text-slate-900 leading-none">{tackleSuccessRate}%</span>
+                        <span className="text-[9px] font-black italic uppercase text-neutral-500">Success Rate</span>
+                        <span className="text-2xl font-black italic text-white leading-none">{tackleSuccessRate}%</span>
                       </div>
-                      <Progress value={tackleSuccessRate} className="h-2 bg-slate-100" indicatorClassName="bg-cyan-500 rounded-full" />
+                      <Progress value={tackleSuccessRate} className="h-2 bg-white/5" indicatorClassName="bg-cyan-500 rounded-full" />
                     </div>
                   </div>
 
-                  {/* RESTORED DETAILED DEFENDER GRID */}
+                  {/* DEFENDER GRID */}
                   <div className="grid grid-cols-3 gap-3">
                     {[{ l: 'Tackles', v: stats.successfulTackles }, { l: 'S. Tackle', v: stats.superTackles }, { l: 'Success', v: tackleSuccessRate + '%' }].map((s, i) => (
-                      <div key={i} className="bg-white p-4 rounded-2xl border-2 border-slate-100 text-center hover:bg-blue-50/30 transition-colors shadow-sm">
-                        <p className="text-[8px] font-black italic uppercase text-slate-400 mb-1">{s.l}</p>
-                        <p className="text-xl font-black italic text-slate-900">{s.v}</p>
+                      <div key={i} className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center hover:bg-blue-500/10 transition-colors shadow-sm">
+                        <p className="text-[8px] font-black italic uppercase text-neutral-500 mb-1">{s.l}</p>
+                        <p className="text-xl font-black italic text-white">{s.v}</p>
                       </div>
                     ))}
                   </div>
@@ -498,24 +498,24 @@ const Profile = () => {
 
                 {/* OVERALL IMPACT CARDS */}
                 <div className="grid grid-cols-2 gap-4 pb-8">
-                  <Card className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group hover:border-amber-500/20 transition-all shadow-sm">
+                  <Card className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden group hover:border-orange-500/20 transition-all shadow-sm">
                     <CardContent className="p-6 flex items-center justify-between">
                       <div className="space-y-1">
-                        <span className="text-[9px] font-black italic uppercase tracking-widest text-slate-400">Season XP</span>
-                        <p className="text-3xl font-black italic text-slate-900 italic tracking-tighter leading-none">{totalPoints}</p>
+                        <span className="text-[9px] font-black italic uppercase tracking-widest text-neutral-500">Season XP</span>
+                        <p className="text-3xl font-black italic text-white tracking-tighter leading-none">{totalPoints}</p>
                       </div>
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:scale-110 group-hover:rotate-12 transition-all">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500 group-hover:scale-110 group-hover:rotate-12 transition-all">
                         <Zap className="w-6 h-6 fill-current" />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group hover:border-blue-500/20 transition-all shadow-sm">
+                  <Card className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden group hover:border-blue-500/20 transition-all shadow-sm">
                     <CardContent className="p-6 flex items-center justify-between">
                       <div className="space-y-1">
-                        <span className="text-[9px] font-black italic uppercase tracking-widest text-slate-400">Battles</span>
-                        <p className="text-3xl font-black italic text-slate-900 italic tracking-tighter leading-none">{stats.totalMatches}</p>
+                        <span className="text-[9px] font-black italic uppercase tracking-widest text-neutral-500">Battles</span>
+                        <p className="text-3xl font-black italic text-white tracking-tighter leading-none">{stats.totalMatches}</p>
                       </div>
-                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 group-hover:scale-110 group-hover:-rotate-12 transition-all">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 group-hover:scale-110 group-hover:-rotate-12 transition-all">
                         <Award className="w-6 h-6 fill-current" />
                       </div>
                     </CardContent>
@@ -526,36 +526,36 @@ const Profile = () => {
               {/* Matches Sub-Tab */}
               <TabsContent value="matches" className="mt-0 space-y-4">
                 {matches.length === 0 ? (
-                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
-                    <Swords className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 rotate-12" />
-                    <Swords className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                    <p className="text-xs font-black italic uppercase tracking-widest">Awaiting Battle...</p>
+                  <div className="py-20 text-center text-neutral-700 bg-white/5 rounded-[32px] border border-white/10 shadow-sm relative overflow-hidden">
+                    <Swords className="w-32 h-32 absolute -right-4 -bottom-4 opacity-[0.02] rotate-12" />
+                    <Swords className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-xs font-black italic uppercase tracking-widest text-neutral-500">Awaiting Battle...</p>
                   </div>
                 ) : (
                   matches.map((match: any) => (
-                    <Card key={match.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-amber-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
-                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 group-hover:rotate-12 transition-all">
+                    <Card key={`match-${match.id}`} className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden group cursor-pointer hover:border-orange-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 group-hover:rotate-12 transition-all text-white">
                         <Swords className="w-20 h-20" />
                       </div>
                       <CardContent className="p-5 relative z-10">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border-2 border-slate-100 group-hover:bg-amber-50 transition-colors">
-                              <Swords className="w-6 h-6 text-slate-400 group-hover:text-amber-600 transition-colors" />
+                            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:bg-orange-500/10 transition-colors">
+                              <Swords className="w-6 h-6 text-neutral-600 group-hover:text-orange-500 transition-colors" />
                             </div>
                             <div>
-                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{match.match_name}</p>
-                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
+                              <p className="text-sm font-black italic uppercase text-white tracking-tight">{match.match_name}</p>
+                              <p className="text-[10px] font-black italic text-neutral-500 uppercase tracking-widest mt-1">
                                 <Trophy className="w-2 h-2 inline mr-1 mb-0.5" />
                                 {match.tournaments?.name || 'Friendly Arena'}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <Badge className={`${match.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'} border-0 text-[10px] font-black italic uppercase px-3 py-1`}>
+                            <Badge className={`${match.status === 'completed' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'} border-0 text-[10px] font-black italic uppercase px-3 py-1`}>
                               {match.status}
                             </Badge>
-                            <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                            <ChevronRight className="w-5 h-5 text-neutral-700 group-hover:text-white transition-colors" />
                           </div>
                         </div>
                       </CardContent>
@@ -567,33 +567,33 @@ const Profile = () => {
               {/* Teams Sub-Tab */}
               <TabsContent value="teams" className="mt-0 space-y-4">
                 {teams.length === 0 ? (
-                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
-                    <Users className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 -rotate-12" />
-                    <Users className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                    <p className="text-xs font-black italic uppercase tracking-widest">Build Your Squad</p>
+                  <div className="py-20 text-center text-neutral-700 bg-white/5 rounded-[32px] border border-white/10 shadow-sm relative overflow-hidden">
+                    <Users className="w-32 h-32 absolute -right-4 -bottom-4 opacity-[0.02] -rotate-12" />
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-xs font-black italic uppercase tracking-widest text-neutral-500">Build Your Squad</p>
                   </div>
                 ) : (
                   teams.map((team: any) => (
-                    <Card key={team.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-blue-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
-                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all">
+                    <Card key={`team-sub-${team.id}`} className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden group cursor-pointer hover:border-orange-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all text-white">
                         <Users className="w-20 h-20 -rotate-12" />
                       </div>
                       <CardContent className="p-5 relative z-10">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-5">
-                            <Avatar className="w-14 h-14 rounded-2xl border-4 border-slate-100 group-hover:border-blue-500/10 transition-colors shadow-sm">
+                            <Avatar className="w-14 h-14 rounded-2xl border-2 border-white/10 group-hover:border-orange-500/20 transition-colors shadow-sm">
                               <AvatarImage src={team.logo_url} />
-                              <AvatarFallback className="bg-slate-50 text-slate-400 text-xs font-black italic">{team.name?.charAt(0)}</AvatarFallback>
+                              <AvatarFallback className="bg-neutral-900 text-neutral-500 text-xs font-black italic">{team.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{team.name}</p>
-                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
+                              <p className="text-sm font-black italic uppercase text-white tracking-tight">{team.name}</p>
+                              <p className="text-[10px] font-black italic text-neutral-500 uppercase tracking-widest mt-1">
                                 <Users className="w-2 h-2 inline mr-1 mb-0.5" />
                                 {team.captain_name || 'LEADER'}
                               </p>
                             </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                          <ChevronRight className="w-5 h-5 text-neutral-700 group-hover:text-white transition-colors" />
                         </div>
                       </CardContent>
                     </Card>
@@ -604,33 +604,33 @@ const Profile = () => {
               {/* Tournaments Sub-Tab */}
               <TabsContent value="tournaments" className="mt-0 space-y-4">
                 {tournaments.length === 0 ? (
-                  <div className="py-20 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
-                    <Trophy className="w-32 h-32 absolute -right-4 -bottom-4 opacity-5 rotate-12" />
-                    <Trophy className="w-16 h-16 mx-auto mb-4 opacity-10" />
-                    <p className="text-xs font-black italic uppercase tracking-widest">Champion Wanted</p>
+                  <div className="py-20 text-center text-neutral-700 bg-white/5 rounded-[32px] border border-white/10 shadow-sm relative overflow-hidden">
+                    <Trophy className="w-32 h-32 absolute -right-4 -bottom-4 opacity-[0.02] rotate-12" />
+                    <Trophy className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                    <p className="text-xs font-black italic uppercase tracking-widest text-neutral-500">Champion Wanted</p>
                   </div>
                 ) : (
                   tournaments.map((t: any) => (
-                    <Card key={t.id} className="bg-white border-2 border-slate-100 rounded-[32px] overflow-hidden group cursor-pointer hover:border-amber-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
-                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all">
+                    <Card key={`tourney-sub-${t.id}`} className="bg-white/5 border border-white/10 rounded-[32px] overflow-hidden group cursor-pointer hover:border-orange-500/20 hover:scale-[1.02] transition-all shadow-sm relative">
+                      <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-all text-white">
                         <Trophy className="w-20 h-20 rotate-12" />
                       </div>
                       <CardContent className="p-5 relative z-10">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-5">
-                            <Avatar className="w-14 h-14 rounded-2xl border-4 border-slate-100 group-hover:border-amber-500/10 transition-colors shadow-sm">
+                            <Avatar className="w-14 h-14 rounded-2xl border-2 border-white/10 group-hover:border-orange-500/20 transition-colors shadow-sm">
                               <AvatarImage src={t.logo_url} />
-                              <AvatarFallback className="bg-slate-50 text-slate-400 text-xs font-black italic">{t.name?.charAt(0)}</AvatarFallback>
+                              <AvatarFallback className="bg-neutral-900 text-neutral-500 text-xs font-black italic">{t.name?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="text-sm font-black italic uppercase text-slate-900 tracking-tight">{t.name}</p>
-                              <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-widest mt-1">
-                                <Trophy className="w-2 h-2 inline mr-1 mb-0.5 text-amber-500" />
+                              <p className="text-sm font-black italic uppercase text-white tracking-tight">{t.name}</p>
+                              <p className="text-[10px] font-black italic text-neutral-500 uppercase tracking-widest mt-1">
+                                <Trophy className="w-2 h-2 inline mr-1 mb-0.5 text-orange-500" />
                                 {t.city || 'VENUE'}
                               </p>
                             </div>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 transition-colors" />
+                          <ChevronRight className="w-5 h-5 text-neutral-700 group-hover:text-white transition-colors" />
                         </div>
                       </CardContent>
                     </Card>
@@ -640,43 +640,42 @@ const Profile = () => {
 
               {/* Highlights Sub-Tab */}
               <TabsContent value="highlights" className="mt-0">
-                <div className="py-24 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-3xl -mr-16 -mt-16 group-hover:bg-amber-500/10 transition-colors"></div>
-                  <Video className="w-48 h-48 absolute -left-10 -bottom-10 opacity-5 -rotate-12" />
-                  <Video className="w-16 h-16 mx-auto mb-4 text-slate-200 group-hover:text-amber-500/40 transition-colors" />
-                  <p className="text-xs font-black italic uppercase tracking-widest">Action clips coming...</p>
+                <div className="py-24 text-center text-neutral-700 bg-white/5 rounded-[32px] border border-white/10 shadow-sm relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-3xl -mr-16 -mt-16 group-hover:bg-orange-500/10 transition-colors"></div>
+                  <Video className="w-48 h-48 absolute -left-10 -bottom-10 opacity-[0.02] -rotate-12" />
+                  <Video className="w-16 h-16 mx-auto mb-4 text-neutral-800 group-hover:text-orange-500/40 transition-colors" />
+                  <p className="text-xs font-black italic uppercase tracking-widest text-neutral-500">Action clips coming...</p>
                 </div>
               </TabsContent>
             </Tabs>
           </div>
         </TabsContent>
 
-        {/* POSTS TAB CONTENT */}
         <TabsContent value="posts" className="mt-0 px-6 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-12">
           {posts.length === 0 ? (
-            <div className="py-24 text-center text-slate-300 bg-white rounded-[32px] border-2 border-slate-100 shadow-sm relative overflow-hidden">
-              <Grid3X3 className="w-32 h-32 absolute -right-8 -bottom-8 opacity-5 rotate-45" />
-              <Grid3X3 className="w-16 h-16 mx-auto mb-4 opacity-10" />
-              <p className="text-xs font-black italic uppercase tracking-widest">Ready for the Gram?</p>
+            <div className="py-24 text-center text-neutral-700 bg-white/5 rounded-[32px] border border-white/10 shadow-sm relative overflow-hidden">
+              <Grid3X3 className="w-32 h-32 absolute -right-8 -bottom-8 opacity-[0.02] rotate-45" />
+              <Grid3X3 className="w-16 h-16 mx-auto mb-4 opacity-20" />
+              <p className="text-xs font-black italic uppercase tracking-widest text-neutral-500">Ready for the Gram?</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-5">
               {posts.map(post => (
-                <div key={post.id} className="aspect-[4/5] bg-white rounded-[32px] overflow-hidden border-2 border-slate-100 relative group cursor-pointer active:scale-95 transition-all shadow-md hover:shadow-xl hover:-translate-y-1">
+                <div key={`post-grid-${post.id}`} className="aspect-[4/5] bg-white/5 rounded-[32px] overflow-hidden border border-white/10 relative group cursor-pointer active:scale-95 transition-all shadow-md hover:shadow-orange-900/10 hover:-translate-y-1">
                   {post.image_url ? (
                     <img src={post.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50 relative">
-                      <Grid3X3 className="w-24 h-24 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] group-hover:scale-110 transition-transform" />
-                      <p className="text-[10px] font-black italic text-slate-400 line-clamp-5 uppercase leading-relaxed tracking-tight relative z-10">{post.content}</p>
+                    <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-white/5 relative">
+                      <Grid3X3 className="w-24 h-24 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] group-hover:scale-110 transition-transform text-white" />
+                      <p className="text-[10px] font-black italic text-neutral-500 line-clamp-5 uppercase leading-relaxed tracking-tight relative z-10">{post.content}</p>
                     </div>
                   )}
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-slate-100 transform translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
-                    <Heart className="w-4 h-4 text-red-500 fill-current" />
+                  <div className="absolute top-4 right-4 bg-orange-500/90 backdrop-blur-md p-2 rounded-2xl shadow-lg border border-white/10 transform translate-x-12 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
+                    <Heart className="w-4 h-4 text-white fill-current" />
                   </div>
                   <div className="absolute bottom-5 left-5">
-                    <div className="bg-slate-900/80 backdrop-blur-xl px-3 py-1.5 rounded-xl flex items-center gap-2 border border-white/20 shadow-2xl">
-                      <Heart className="w-3 h-3 text-red-500 fill-current" />
+                    <div className="bg-[#050508]/80 backdrop-blur-xl px-3 py-1.5 rounded-xl flex items-center gap-2 border border-white/10 shadow-2xl">
+                      <Heart className="w-3 h-3 text-orange-500 fill-current" />
                       <span className="text-[10px] font-black italic text-white tracking-tighter">{post.likes_count || 0}</span>
                     </div>
                   </div>

@@ -61,57 +61,57 @@ export const PostCard = ({ post }: PostCardProps) => {
         switch (post.type) {
             case 'clip':
                 return (
-                    <div className="relative aspect-[4/5] bg-slate-900 overflow-hidden group">
+                    <div className="relative aspect-[4/5] bg-[#050508] overflow-hidden group">
                         {post.video_url ? (
-                            <video src={post.video_url} className="w-full h-full object-cover" loop muted autoPlay />
+                            <video src={post.video_url} className="w-full h-full object-cover shadow-2xl" loop muted autoPlay />
                         ) : (
                             <img src={post.image_url} alt="Clip fallback" className="w-full h-full object-cover opacity-50" />
                         )}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-xl flex items-center justify-center border border-white/20 shadow-2xl group-hover:scale-110 transition-transform">
                                 <Play className="w-8 h-8 text-white fill-current" />
                             </div>
                         </div>
                         <div className="absolute top-4 right-4">
-                            <Badge className="bg-red-600 text-white border-0 font-black uppercase tracking-widest text-[10px]">Highlight</Badge>
+                            <Badge className="bg-orange-600 text-white border-0 font-black uppercase tracking-widest text-[9px] px-3">Highlight</Badge>
                         </div>
                     </div>
                 );
             case 'match_result':
                 return (
-                    <div className="bg-white border-y border-slate-100 p-8 flex flex-col items-center gap-6 relative overflow-hidden group cursor-pointer" onClick={() => navigate(`/match-summary/${post.match_id}`)}>
-                        <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
+                    <div className="bg-[#0A0A0E] border-y border-white/5 p-8 flex flex-col items-center gap-6 relative overflow-hidden group cursor-pointer" onClick={() => navigate(`/match-summary/${post.match_id}`)}>
+                        <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity text-white">
                             <Trophy className="w-48 h-48 rotate-12" />
                         </div>
-                        <Badge className="bg-slate-900 text-white rounded-full px-4 h-7 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Final Result</Badge>
+                        <Badge className="bg-white text-black rounded-full px-4 h-7 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Final Result</Badge>
                         <div className="flex items-center justify-between w-full max-w-[320px] gap-8">
                             <div className="flex flex-col items-center gap-4 flex-1">
-                                <div className="w-16 h-16 bg-slate-50 rounded-[24px] flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                                    <span className="text-2xl font-black text-slate-400">{post.match_data?.team_a_name?.charAt(0) || "A"}</span>
+                                <div className="w-16 h-16 bg-white/5 rounded-[24px] flex items-center justify-center shadow-sm border border-white/10 group-hover:scale-110 transition-transform">
+                                    <span className="text-2xl font-black text-white/20">{post.match_data?.team_a_name?.charAt(0) || "A"}</span>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">{post.match_data?.team_a_name || "Team A"}</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 text-center">{post.match_data?.team_a_name || "Team A"}</span>
                             </div>
                             <div className="flex flex-col items-center gap-1">
                                 <div className="flex items-center gap-4">
-                                    <span className="text-4xl font-black text-slate-900">{post.match_data?.team_a_score || 0}</span>
-                                    <span className="text-xl font-black text-slate-200">/</span>
-                                    <span className="text-4xl font-black text-slate-900">{post.match_data?.team_b_score || 0}</span>
+                                    <span className="text-4xl font-black text-white">{post.match_data?.team_a_score || 0}</span>
+                                    <span className="text-xl font-black text-white/10">/</span>
+                                    <span className="text-4xl font-black text-white">{post.match_data?.team_b_score || 0}</span>
                                 </div>
-                                <div className="text-[9px] font-black text-orange-600 uppercase tracking-[0.3em]">Full Time</div>
+                                <div className="text-[9px] font-black text-orange-500 uppercase tracking-[0.3em]">Full Time</div>
                             </div>
                             <div className="flex flex-col items-center gap-4 flex-1">
-                                <div className="w-16 h-16 bg-slate-50 rounded-[24px] flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                                    <span className="text-2xl font-black text-slate-400">{post.match_data?.team_b_name?.charAt(0) || "B"}</span>
+                                <div className="w-16 h-16 bg-white/5 rounded-[24px] flex items-center justify-center shadow-sm border border-white/10 group-hover:scale-110 transition-transform">
+                                    <span className="text-2xl font-black text-white/20">{post.match_data?.team_b_name?.charAt(0) || "B"}</span>
                                 </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">{post.match_data?.team_b_name || "Team B"}</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 text-center">{post.match_data?.team_b_name || "Team B"}</span>
                             </div>
                         </div>
                         {post.match_data?.mvp_name && (
-                            <div className="bg-orange-50 px-4 py-2 rounded-2xl flex items-center gap-3 border border-orange-100">
+                            <div className="bg-orange-500/10 px-4 py-2 rounded-2xl flex items-center gap-3 border border-orange-500/20">
                                 <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
                                     <Star className="w-3 h-3 text-white fill-current" />
                                 </div>
-                                <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">MVP: {post.match_data.mvp_name}</span>
+                                <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">MVP: {post.match_data.mvp_name}</span>
                             </div>
                         )}
                     </div>
@@ -134,20 +134,20 @@ export const PostCard = ({ post }: PostCardProps) => {
                 );
             case 'tournament':
                 return (
-                    <div className="relative aspect-[16/9] bg-slate-900 overflow-hidden group cursor-pointer" onClick={() => navigate(`/tournaments/${post.tournament_id}`)}>
-                        <img src={post.image_url} alt="Tournament" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                    <div className="relative aspect-[16/9] bg-[#050508] overflow-hidden group cursor-pointer" onClick={() => navigate(`/tournaments/${post.tournament_id}`)}>
+                        <img src={post.image_url} alt="Tournament" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050508] via-transparent to-transparent" />
                         <div className="absolute bottom-6 left-6 right-6 space-y-2">
-                            <Badge className="bg-yellow-500 text-slate-950 border-0 font-black uppercase tracking-widest text-[9px]">Tournament Alert</Badge>
-                            <h4 className="text-xl font-black uppercase tracking-tight text-white">{post.tournament_data?.name || "KPL Season 5"}</h4>
+                            <Badge className="bg-orange-500 text-white border-0 font-black uppercase tracking-widest text-[8px] px-3">Tournament Alert</Badge>
+                            <h4 className="text-xl font-black uppercase tracking-tight text-white italic">{post.tournament_data?.name || "KPL Season 5"}</h4>
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1.5 text-white/60">
-                                    <Activity className="w-3 h-3" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">{post.tournament_data?.location || "Sangli, MH"}</span>
+                                <div className="flex items-center gap-1.5 text-neutral-400">
+                                    <Activity className="w-3 h-3 text-orange-500" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">{post.tournament_data?.location || "Sangli, MH"}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5 text-white/60">
-                                    <Trophy className="w-3 h-3" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">₹50K Pool</span>
+                                <div className="flex items-center gap-1.5 text-neutral-400">
+                                    <Trophy className="w-3 h-3 text-orange-500" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest">{post.tournament_data?.prize_pool || "₹50K Pool"}</span>
                                 </div>
                             </div>
                         </div>
@@ -155,7 +155,7 @@ export const PostCard = ({ post }: PostCardProps) => {
                 );
             default:
                 return post.image_url ? (
-                    <div className="w-full aspect-square bg-slate-50">
+                    <div className="w-full aspect-square bg-[#050508]">
                         <img src={post.image_url} alt="Post" className="w-full h-full object-cover" />
                     </div>
                 ) : null;
@@ -163,31 +163,31 @@ export const PostCard = ({ post }: PostCardProps) => {
     };
 
     return (
-        <div className="bg-white border-b border-slate-100 last:border-0 group">
+        <div className="bg-transparent border-b border-white/5 last:border-0 group">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 p-0.5 border border-slate-100 shadow-sm overflow-hidden group-hover:rotate-6 transition-transform">
+                    <div className="w-10 h-10 rounded-2xl bg-white/5 p-0.5 border border-white/10 shadow-sm overflow-hidden group-hover:rotate-6 transition-transform">
                         <Avatar className="w-full h-full rounded-[14px]">
                             <AvatarImage src={profileAvatar} />
-                            <AvatarFallback className="bg-slate-100 text-slate-400 text-[10px] font-black">
+                            <AvatarFallback className="bg-neutral-800 text-neutral-500 text-[10px] font-black">
                                 {profileName.charAt(0).toUpperCase()}
                             </AvatarFallback>
                         </Avatar>
                     </div>
                     <div>
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{profileName}</span>
+                            <span className="text-sm font-black text-white uppercase tracking-tight">{profileName}</span>
                             {post.type === 'tournament' && (
-                                <Badge variant="outline" className="h-4 px-1.5 text-[8px] font-black uppercase text-orange-600 border-orange-200 bg-orange-50">Organizer</Badge>
+                                <Badge variant="outline" className="h-4 px-1.5 text-[8px] font-black uppercase text-orange-500 border-orange-500/20 bg-orange-500/10">Organizer</Badge>
                             )}
                         </div>
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none">
-                            {formatDistanceToNow(new Date(post.created_at), { addSuffix: false })} ago
+                        <span className="text-neutral-500 text-[10px] font-bold uppercase tracking-widest leading-none">
+                            {formatDistanceToNow(new Date(post.created_at || Date.now()), { addSuffix: false })} ago
                         </span>
                     </div>
                 </div>
-                <button className="p-2 hover:bg-slate-50 rounded-xl transition-colors text-slate-300">
+                <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-neutral-600">
                     <MoreHorizontal className="w-5 h-5" />
                 </button>
             </div>
@@ -201,17 +201,17 @@ export const PostCard = ({ post }: PostCardProps) => {
                     <div className="flex items-center gap-6">
                         <button
                             onClick={handleLike}
-                            className={`flex items-center gap-2 transition-all active:scale-125 ${liked ? 'text-red-500' : 'text-slate-900 hover:text-slate-400'}`}
+                            className={`flex items-center gap-2 transition-all active:scale-125 ${liked ? 'text-red-500' : 'text-white hover:text-white/70'}`}
                         >
                             <Heart className={`w-6 h-6 ${liked ? 'fill-current' : ''}`} />
                             <span className="text-xs font-black font-mono tracking-tighter">{likesCount}</span>
                         </button>
-                        <button className="flex items-center gap-2 text-slate-900 hover:text-slate-400">
+                        <button className="flex items-center gap-2 text-white hover:text-white/70">
                             <MessageCircle className="w-6 h-6" />
                             <span className="text-xs font-black font-mono tracking-tighter">24</span>
                         </button>
                         <button
-                            className="text-slate-900 hover:text-slate-400"
+                            className="text-white hover:text-white/70"
                             onClick={() => {
                                 handleShare({
                                     title: `Post by ${profileName}`,
@@ -223,15 +223,15 @@ export const PostCard = ({ post }: PostCardProps) => {
                             <Share2 className="w-6 h-6" />
                         </button>
                     </div>
-                    <button className="text-slate-900 hover:text-slate-400">
+                    <button className="text-white hover:text-white/70">
                         <Bookmark className="w-6 h-6" />
                     </button>
                 </div>
 
                 {/* Caption (only for photos/clips) */}
                 {(post.type === 'photo' || post.type === 'clip' || !post.type) && post.content && (
-                    <div className="text-sm leading-relaxed text-slate-600">
-                        <span className="font-black text-slate-900 uppercase tracking-tight mr-2">{profileName}</span>
+                    <div className="text-sm leading-relaxed text-neutral-400">
+                        <span className="font-black text-white uppercase tracking-tight mr-2">{profileName}</span>
                         {post.content}
                     </div>
                 )}

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Upload, Trophy, Settings, Info, Calendar as CalendarIcon, Phone, MapPin, ChevronRight, Swords } from "lucide-react";
+import { ArrowLeft, Upload, Trophy, Settings, Info, Calendar as CalendarIcon, Phone, MapPin, ChevronRight, Swords, Users2 } from "lucide-react";
 import { z } from "zod";
 
 const tournamentSchema = z.object({
@@ -48,6 +48,7 @@ const CreateTournament = () => {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
+    // Basic Details
     name: "",
     city: "",
     ground: "",
@@ -56,17 +57,51 @@ const CreateTournament = () => {
     end_date: "",
     category: "Open",
     tournament_type: "League",
+
+    // Team Configuration
+    max_teams: "16",
+    min_teams: "4",
+    players_per_team: "12",
+    on_court_players: "7",
+    substitutes: "5",
+    foreign_players_allowed: false,
+    max_foreign_players: "0",
+
+    // Match Rules
+    match_duration: "40",
+    halves: "2",
     half_duration: "20",
-    players_per_team: "7",
+    break_duration: "5",
+    raid_timer: "30",
+    timeouts_per_half: "2",
+    timeout_duration: "30",
+    all_out_points: "2",
+
+    // Points System
     points_win: "2",
     points_tie: "1",
     points_loss: "0",
     tie_breaker: "Score Difference",
-    golden_raid: true,
-    max_subs: "5",
-    timeouts_per_half: "2",
+
+    // Advanced Rules (Toggles)
+    bonus_line_enabled: true,
+    super_tackle_enabled: true,
+    do_or_die_raid: true,
+    golden_raid: false,
     review_system: false,
+    video_referee: false,
+
+    // Officials & Roles
+    tournament_admin: "",
+    referees: "",
+    scorers: "",
+    timekeepers: "",
+
+    // Legacy fields for compatibility
+    max_subs: "5",
   });
+
+
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -151,9 +186,32 @@ const CreateTournament = () => {
         cover_url: coverUrl,
         status: 'Draft',
         match_format: {
+          match_duration: parseInt(formData.match_duration),
+          halves: parseInt(formData.halves),
           half_duration: parseInt(formData.half_duration),
-          players_per_team: parseInt(formData.players_per_team),
+          break_duration: parseInt(formData.break_duration),
+          raid_timer: parseInt(formData.raid_timer),
+          timeout_duration: parseInt(formData.timeout_duration),
+          all_out_points: parseInt(formData.all_out_points),
         },
+        settings: {
+          team_config: {
+            max_teams: parseInt(formData.max_teams),
+            min_teams: parseInt(formData.min_teams),
+            players_per_team: parseInt(formData.players_per_team),
+            on_court_players: parseInt(formData.on_court_players),
+            substitutes: parseInt(formData.substitutes),
+            foreign_players_allowed: formData.foreign_players_allowed,
+            max_foreign_players: parseInt(formData.max_foreign_players),
+          },
+          officials: {
+            tournament_admin: formData.tournament_admin || null,
+            referees: formData.referees ? formData.referees.split(',').map(s => s.trim()).filter(Boolean) : [],
+            scorers: formData.scorers ? formData.scorers.split(',').map(s => s.trim()).filter(Boolean) : [],
+            timekeepers: formData.timekeepers ? formData.timekeepers.split(',').map(s => s.trim()).filter(Boolean) : [],
+          },
+        },
+
         rules_json: {
           points_system: {
             win: parseInt(formData.points_win),
@@ -161,14 +219,18 @@ const CreateTournament = () => {
             loss: parseInt(formData.points_loss),
           },
           tie_breaker: formData.tie_breaker,
+          timeouts_per_half: parseInt(formData.timeouts_per_half),
           advanced_rules: {
+            bonus_line_enabled: formData.bonus_line_enabled,
+            super_tackle_enabled: formData.super_tackle_enabled,
+            do_or_die_raid: formData.do_or_die_raid,
             golden_raid: formData.golden_raid,
-            max_subs: parseInt(formData.max_subs),
-            timeouts_per_half: parseInt(formData.timeouts_per_half),
             review_system: formData.review_system,
+            video_referee: formData.video_referee,
           }
         },
       });
+
 
       if (error) throw error;
 
@@ -426,38 +488,191 @@ const CreateTournament = () => {
 
             <TabsContent value="rules" className="space-y-6 focus-visible:outline-none focus-visible:ring-0">
               <div className="space-y-6 pb-24">
-                {/* Match Format */}
+                {/* TEAM CONFIGURATION */}
                 <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
-                  <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
-                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-orange-600" />
-                      Configuration
+                  <CardHeader className="bg-orange-50/50 border-b border-orange-100 p-6">
+                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-orange-600 flex items-center gap-2">
+                      <Users2 className="h-4 w-4" />
+                      Team Configuration (Critical)
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="half_duration" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Half Duration (Mins)</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Max Teams</Label>
                         <Input
-                          id="half_duration"
                           type="number"
-                          value={formData.half_duration}
-                          onChange={(e) => setFormData({ ...formData, half_duration: e.target.value })}
+                          value={formData.max_teams}
+                          onChange={(e) => setFormData({ ...formData, max_teams: e.target.value })}
                           className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="players_per_team" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Players / Team</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Min Teams</Label>
                         <Input
-                          id="players_per_team"
                           type="number"
-                          value={formData.players_per_team}
-                          onChange={(e) => setFormData({ ...formData, players_per_team: e.target.value })}
+                          value={formData.min_teams}
+                          onChange={(e) => setFormData({ ...formData, min_teams: e.target.value })}
                           className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold"
                         />
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-2 text-center p-4 bg-blue-50/30 rounded-2xl border-2 border-blue-100/50">
+                        <Label className="text-[9px] font-black uppercase text-blue-600 tracking-[0.1em] mb-1 block">Squad Size</Label>
+                        <Input
+                          type="number"
+                          value={formData.players_per_team}
+                          onChange={(e) => setFormData({ ...formData, players_per_team: e.target.value })}
+                          className="bg-transparent border-0 text-center text-xl font-black italic h-auto p-0"
+                        />
+                      </div>
+                      <div className="space-y-2 text-center p-4 bg-green-50/30 rounded-2xl border-2 border-green-100/50">
+                        <Label className="text-[9px] font-black uppercase text-green-600 tracking-[0.1em] mb-1 block">On-Court</Label>
+                        <Input
+                          type="number"
+                          value={formData.on_court_players}
+                          onChange={(e) => setFormData({ ...formData, on_court_players: e.target.value })}
+                          className="bg-transparent border-0 text-center text-xl font-black italic h-auto p-0"
+                        />
+                      </div>
+                      <div className="space-y-2 text-center p-4 bg-purple-50/30 rounded-2xl border-2 border-purple-100/50">
+                        <Label className="text-[9px] font-black uppercase text-purple-600 tracking-[0.1em] mb-1 block">Substitutes</Label>
+                        <Input
+                          type="number"
+                          value={formData.substitutes}
+                          onChange={(e) => setFormData({ ...formData, substitutes: e.target.value })}
+                          className="bg-transparent border-0 text-center text-xl font-black italic h-auto p-0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border-2 border-slate-100">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-black uppercase tracking-tight text-slate-900">Foreign Players Allowed</Label>
+                        <p className="text-[10px] font-medium text-slate-400 leading-none">For elite/international events</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {formData.foreign_players_allowed && (
+                          <Input
+                            type="number"
+                            value={formData.max_foreign_players}
+                            onChange={(e) => setFormData({ ...formData, max_foreign_players: e.target.value })}
+                            className="w-16 h-10 rounded-xl border-2 border-slate-200 text-center text-sm font-bold"
+                            placeholder="Max"
+                          />
+                        )}
+                        <Switch
+                          checked={formData.foreign_players_allowed}
+                          onCheckedChange={(val) => setFormData({ ...formData, foreign_players_allowed: val })}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* MATCH RULES */}
+                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                  <CardHeader className="bg-red-50/50 border-b border-red-100 p-6">
+                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-red-600 flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Match Rules Engine
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    {/* Duration Settings */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Duration Settings (Minutes)</Label>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
+                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Match</Label>
+                          <Input
+                            type="number"
+                            value={formData.match_duration}
+                            onChange={(e) => setFormData({ ...formData, match_duration: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
+                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Halves</Label>
+                          <Input
+                            type="number"
+                            value={formData.halves}
+                            onChange={(e) => setFormData({ ...formData, halves: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
+                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Half</Label>
+                          <Input
+                            type="number"
+                            value={formData.half_duration}
+                            onChange={(e) => setFormData({ ...formData, half_duration: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
+                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Break</Label>
+                          <Input
+                            type="number"
+                            value={formData.break_duration}
+                            onChange={(e) => setFormData({ ...formData, break_duration: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Timer Settings */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Timer Settings (Seconds)</Label>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-2 text-center p-3 bg-orange-50/30 rounded-2xl border-2 border-orange-100/50">
+                          <Label className="text-[8px] font-black uppercase text-orange-600 tracking-[0.1em] mb-1 block">Raid Timer</Label>
+                          <Input
+                            type="number"
+                            value={formData.raid_timer}
+                            onChange={(e) => setFormData({ ...formData, raid_timer: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center p-3 bg-blue-50/30 rounded-2xl border-2 border-blue-100/50">
+                          <Label className="text-[8px] font-black uppercase text-blue-600 tracking-[0.1em] mb-1 block">Timeouts/Half</Label>
+                          <Input
+                            type="number"
+                            value={formData.timeouts_per_half}
+                            onChange={(e) => setFormData({ ...formData, timeouts_per_half: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                        <div className="space-y-2 text-center p-3 bg-purple-50/30 rounded-2xl border-2 border-purple-100/50">
+                          <Label className="text-[8px] font-black uppercase text-purple-600 tracking-[0.1em] mb-1 block">Timeout (sec)</Label>
+                          <Input
+                            type="number"
+                            value={formData.timeout_duration}
+                            onChange={(e) => setFormData({ ...formData, timeout_duration: e.target.value })}
+                            className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* All-Out Points */}
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-red-50/30 border-2 border-red-100/50">
+                      <div className="space-y-0.5">
+                        <Label className="text-xs font-black uppercase tracking-tight text-red-600">All-Out Points</Label>
+                        <p className="text-[10px] font-medium text-slate-400 leading-none">Bonus points for all-out</p>
+                      </div>
+                      <Input
+                        type="number"
+                        value={formData.all_out_points}
+                        onChange={(e) => setFormData({ ...formData, all_out_points: e.target.value })}
+                        className="w-16 h-12 rounded-xl border-2 border-red-200 text-center text-xl font-black"
+                      />
+                    </div>
+
+                    {/* Points System */}
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Points System</Label>
                       <div className="grid grid-cols-3 gap-3">
@@ -493,59 +708,90 @@ const CreateTournament = () => {
                   </CardContent>
                 </Card>
 
+
                 {/* Advanced Rules */}
                 <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
                   <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
                     <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
                       <Swords className="h-4 w-4 text-orange-600" />
-                      Advanced Rules
+                      Advanced Rules (Toggles)
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6 space-y-6">
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border-2 border-slate-100">
-                      <div className="space-y-0.5">
-                        <Label className="text-xs font-black uppercase tracking-tight text-slate-900">Golden Raid</Label>
-                        <p className="text-[10px] font-medium text-slate-400 leading-none">Tie-breaker raid system</p>
-                      </div>
-                      <Switch
-                        checked={formData.golden_raid}
-                        onCheckedChange={(val) => setFormData({ ...formData, golden_raid: val })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border-2 border-slate-100">
-                      <div className="space-y-0.5">
-                        <Label className="text-xs font-black uppercase tracking-tight text-slate-900">Review System (VAR)</Label>
-                        <p className="text-[10px] font-medium text-slate-400 leading-none">Official coaching challenges</p>
-                      </div>
-                      <Switch
-                        checked={formData.review_system}
-                        onCheckedChange={(val) => setFormData({ ...formData, review_system: val })}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2 text-center p-4 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                        <Label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Max Subs</Label>
-                        <Input
-                          type="number"
-                          value={formData.max_subs}
-                          onChange={(e) => setFormData({ ...formData, max_subs: e.target.value })}
-                          className="bg-transparent border-0 text-center text-xl font-black italic h-auto p-0"
+                  <CardContent className="p-6 space-y-4">
+                    {/* Row 1: Core Rules */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-green-50/50 border-2 border-green-100">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-green-700">Bonus Line</Label>
+                          <p className="text-[9px] font-medium text-green-500/70 leading-none">Enable bonus points</p>
+                        </div>
+                        <Switch
+                          checked={formData.bonus_line_enabled}
+                          onCheckedChange={(val) => setFormData({ ...formData, bonus_line_enabled: val })}
                         />
                       </div>
-                      <div className="space-y-2 text-center p-4 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                        <Label className="text-[9px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Timeouts (Half)</Label>
-                        <Input
-                          type="number"
-                          value={formData.timeouts_per_half}
-                          onChange={(e) => setFormData({ ...formData, timeouts_per_half: e.target.value })}
-                          className="bg-transparent border-0 text-center text-xl font-black italic h-auto p-0"
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/50 border-2 border-blue-100">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-blue-700">Super Tackle</Label>
+                          <p className="text-[9px] font-medium text-blue-500/70 leading-none">2+ point tackles</p>
+                        </div>
+                        <Switch
+                          checked={formData.super_tackle_enabled}
+                          onCheckedChange={(val) => setFormData({ ...formData, super_tackle_enabled: val })}
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    {/* Row 2: Raid Rules */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-orange-50/50 border-2 border-orange-100">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-orange-700">Do-or-Die</Label>
+                          <p className="text-[9px] font-medium text-orange-500/70 leading-none">3 empty = must score</p>
+                        </div>
+                        <Switch
+                          checked={formData.do_or_die_raid}
+                          onCheckedChange={(val) => setFormData({ ...formData, do_or_die_raid: val })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/50 border-2 border-amber-100">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-amber-700">Golden Raid</Label>
+                          <p className="text-[9px] font-medium text-amber-500/70 leading-none">Tie-breaker system</p>
+                        </div>
+                        <Switch
+                          checked={formData.golden_raid}
+                          onCheckedChange={(val) => setFormData({ ...formData, golden_raid: val })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Review Rules */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-purple-50/50 border-2 border-purple-100">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-purple-700">Review System</Label>
+                          <p className="text-[9px] font-medium text-purple-500/70 leading-none">Coaching challenges</p>
+                        </div>
+                        <Switch
+                          checked={formData.review_system}
+                          onCheckedChange={(val) => setFormData({ ...formData, review_system: val })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 border-2 border-slate-200">
+                        <div className="space-y-0.5">
+                          <Label className="text-[10px] font-black uppercase tracking-tight text-slate-600">Video Referee</Label>
+                          <p className="text-[9px] font-medium text-slate-400 leading-none">VAR for decisions</p>
+                        </div>
+                        <Switch
+                          checked={formData.video_referee}
+                          onCheckedChange={(val) => setFormData({ ...formData, video_referee: val })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tie-Breaker */}
+                    <div className="space-y-2 pt-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Standing Tie-Breaker</Label>
                       <Select
                         value={formData.tie_breaker}
@@ -562,6 +808,86 @@ const CreateTournament = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* OFFICIALS & ROLES */}
+                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                  <CardHeader className="bg-indigo-50/50 border-b border-indigo-100 p-6">
+                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-indigo-600 flex items-center gap-2">
+                      <Users2 className="h-4 w-4" />
+                      Officials & Roles
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <p className="text-[10px] font-medium text-slate-400 -mt-2 mb-4">
+                      Assign officials to manage this tournament. Enter email addresses or names.
+                    </p>
+
+                    {/* Tournament Admin */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tournament Admin</Label>
+                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50/30 border-2 border-indigo-100/50">
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <Settings className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <Input
+                          placeholder="admin@email.com (auto-assigned to you)"
+                          value={formData.tournament_admin || ''}
+                          onChange={(e) => setFormData({ ...formData, tournament_admin: e.target.value })}
+                          className="flex-1 border-0 bg-transparent text-sm font-bold focus-visible:ring-0"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Referees */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Referees (comma-separated)</Label>
+                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-green-50/30 border-2 border-green-100/50">
+                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                          <Swords className="w-4 h-4 text-green-600" />
+                        </div>
+                        <Input
+                          placeholder="referee1@email.com, referee2@email.com"
+                          value={formData.referees || ''}
+                          onChange={(e) => setFormData({ ...formData, referees: e.target.value })}
+                          className="flex-1 border-0 bg-transparent text-sm font-bold focus-visible:ring-0"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Scorers */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Scorers (comma-separated)</Label>
+                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-orange-50/30 border-2 border-orange-100/50">
+                        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                          <Trophy className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <Input
+                          placeholder="scorer1@email.com, scorer2@email.com"
+                          value={formData.scorers || ''}
+                          onChange={(e) => setFormData({ ...formData, scorers: e.target.value })}
+                          className="flex-1 border-0 bg-transparent text-sm font-bold focus-visible:ring-0"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Timekeepers */}
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Timekeepers (comma-separated)</Label>
+                      <div className="flex items-center gap-2 p-3 rounded-2xl bg-purple-50/30 border-2 border-purple-100/50">
+                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                          <CalendarIcon className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <Input
+                          placeholder="timekeeper1@email.com, timekeeper2@email.com"
+                          value={formData.timekeepers || ''}
+                          onChange={(e) => setFormData({ ...formData, timekeepers: e.target.value })}
+                          className="flex-1 border-0 bg-transparent text-sm font-bold focus-visible:ring-0"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
               </div>
 
               {/* STICKY BOTTOM BAR FOR MOBILE */}

@@ -7,6 +7,36 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Search, Trash2, Eye, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import {
+    Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter
+} from '@/components/ui/dialog';
+
+interface Team {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    captain_name: string | null;
+    city: string | null;
+    is_verified?: boolean;
+    created_at: string;
+}
+
+interface TeamDetail extends Team {
+    players: Player[];
+    matches_played: number;
+    wins: number;
+    losses: number;
+    total_points: number;
+}
+
+interface Player {
+    id: string;
+    name: string;
+    jersey_number: number;
+    role: string;
+    raid_points: number;
+    tackle_points: number;
+}
 
 const ManageTeams = () => {
     const { toast } = useToast();

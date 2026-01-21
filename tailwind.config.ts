@@ -54,10 +54,23 @@ export default {
         "gradient-hero": "var(--gradient-hero)",
         "gradient-action": "var(--gradient-action)",
       },
+      fontSize: {
+        h1: ["32px", { lineHeight: "1.2", fontWeight: "800" }],
+        h2: ["24px", { lineHeight: "1.3", fontWeight: "700" }],
+        h3: ["20px", { lineHeight: "1.4", fontWeight: "600" }],
+        body: ["16px", { lineHeight: "1.5", fontWeight: "400" }],
+        secondary: ["14px", { lineHeight: "1.5", fontWeight: "400" }],
+        caption: ["12px", { lineHeight: "1.5", fontWeight: "400" }],
+      },
+      height: {
+        btn: "48px",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        btn: "12px",
+        card: "16px",
       },
       keyframes: {
         "accordion-down": {

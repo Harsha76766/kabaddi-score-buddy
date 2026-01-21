@@ -3,17 +3,13 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// FIX: define __dirname for ESM and avoid static import of lovable-tagger
+// Vite configuration for RaidBook
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig(async ({ mode }) => {
   const plugins = [react()];
-  if (mode === "development") {
-    // CHANGE: cast to any to avoid type resolution error in editors
-    const { componentTagger } = (await import("lovable-tagger")) as any;
-    plugins.push(componentTagger());
-  }
+  // No third-party dev taggers - clean build
 
   // Move server config inside the returned object and return a single valid config
   return {

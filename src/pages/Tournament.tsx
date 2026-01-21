@@ -346,36 +346,78 @@ const Tournament = () => {
               <TabsTrigger value="my" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm transition-all border-0 ring-0">My Hub</TabsTrigger>
             </TabsList>
 
-            <div className="mt-6 space-y-4 px-1">
-              {loading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
-                      <Skeleton className="w-16 h-16 rounded-[24px]" />
-                      <div className="flex-1 space-y-3">
-                        <Skeleton className="h-4 w-3/4 rounded-full" />
-                        <Skeleton className="h-3 w-1/2 rounded-full" />
-                        <Skeleton className="h-3 w-1/3 rounded-full" />
+            <div className="mt-6 px-1">
+              <TabsContent value="live" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                        <div className="flex-1 space-y-3">
+                          <Skeleton className="h-4 w-3/4 rounded-full" />
+                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <TabsContent value="live" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
-                    {getFilteredTournaments(tournaments.live).length === 0 ? renderEmptyState("live") : getFilteredTournaments(tournaments.live).map(t => renderTournamentCard(t))}
-                  </TabsContent>
-                  <TabsContent value="upcoming" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
-                    {getFilteredTournaments(tournaments.upcoming).length === 0 ? renderEmptyState("upcoming") : getFilteredTournaments(tournaments.upcoming).map(t => renderTournamentCard(t))}
-                  </TabsContent>
-                  <TabsContent value="completed" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
-                    {getFilteredTournaments(tournaments.completed).length === 0 ? renderEmptyState("completed") : getFilteredTournaments(tournaments.completed).map(t => renderTournamentCard(t))}
-                  </TabsContent>
-                  <TabsContent value="my" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
-                    {getFilteredTournaments(tournaments.my).length === 0 ? renderEmptyState("my") : getFilteredTournaments(tournaments.my).map(t => renderTournamentCard(t))}
-                  </TabsContent>
-                </>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  getFilteredTournaments(tournaments.live).length === 0 ? renderEmptyState("live") : getFilteredTournaments(tournaments.live).map(t => renderTournamentCard(t))
+                )}
+              </TabsContent>
+
+              <TabsContent value="upcoming" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                        <div className="flex-1 space-y-3">
+                          <Skeleton className="h-4 w-3/4 rounded-full" />
+                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  getFilteredTournaments(tournaments.upcoming).length === 0 ? renderEmptyState("upcoming") : getFilteredTournaments(tournaments.upcoming).map(t => renderTournamentCard(t))
+                )}
+              </TabsContent>
+
+              <TabsContent value="completed" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                        <div className="flex-1 space-y-3">
+                          <Skeleton className="h-4 w-3/4 rounded-full" />
+                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  getFilteredTournaments(tournaments.completed).length === 0 ? renderEmptyState("completed") : getFilteredTournaments(tournaments.completed).map(t => renderTournamentCard(t))
+                )}
+              </TabsContent>
+
+              <TabsContent value="my" className="space-y-4 mt-0 border-0 ring-0 focus-visible:ring-0">
+                {loading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                        <div className="flex-1 space-y-3">
+                          <Skeleton className="h-4 w-3/4 rounded-full" />
+                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  getFilteredTournaments(tournaments.my).length === 0 ? renderEmptyState("my") : getFilteredTournaments(tournaments.my).map(t => renderTournamentCard(t))
+                )}
+              </TabsContent>
             </div>
           </Tabs>
         </div>

@@ -111,28 +111,55 @@ export const Feed = () => {
 
     useEffect(() => {
         fetchPosts();
+
+        // Real-time subscription for new posts
+        const postsChannel = supabase
+            .channel('realtime_posts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+                // Add new post to the top of the feed
+                const newPost = {
+                    ...payload.new,
+                    profiles: { name: 'New User', avatar_url: undefined },
+                    likes_count: 0,
+                    has_liked: false
+                } as Post;
+                setPosts(prev => [newPost, ...prev]);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, () => {
+                // Refetch to get updated data
+                fetchPosts();
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
+                // Remove deleted post from state
+                setPosts(prev => prev.filter(p => p.id !== (payload.old as any).id));
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(postsChannel);
+        };
     }, []);
 
     return (
-        <div className="max-w-lg mx-auto bg-slate-50 min-h-screen">
+        <div className="max-w-lg mx-auto bg-transparent min-h-screen">
             {loading ? (
                 <div className="flex justify-center py-20">
                     <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
                 </div>
             ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-white/5">
                     {posts.map(post => (
                         <PostCard key={post.id} post={post} />
                     ))}
 
                     {/* Empty State / End of Feed */}
                     <div className="py-20 px-6 text-center space-y-4">
-                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
-                            <Activity className="w-8 h-8 text-slate-300" />
+                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                            <Activity className="w-8 h-8 text-neutral-700" />
                         </div>
                         <div className="space-y-1">
-                            <h4 className="text-slate-900 font-black uppercase tracking-tight">You're all caught up!</h4>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Follow more teams to see their highlights</p>
+                            <h4 className="text-white font-black uppercase tracking-tight">You're all caught up!</h4>
+                            <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest">Follow more teams to see their highlights</p>
                         </div>
                     </div>
                 </div>

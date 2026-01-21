@@ -2,12 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Users } from "lucide-react";
+import { ArrowLeft, Plus, Users, Trophy, Target, ChevronRight, Search } from "lucide-react";
 import { z } from "zod";
 
 const teamSchema = z.object({
@@ -21,6 +21,7 @@ const Teams = () => {
   const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     captain_name: "",
@@ -34,7 +35,10 @@ const Teams = () => {
     try {
       const { data, error } = await supabase
         .from("teams")
-        .select("*")
+        .select(`
+          *,
+          players:players(count)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -82,101 +86,147 @@ const Teams = () => {
     }
   };
 
+  const filteredTeams = teams.filter(team =>
+    team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    team.captain_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-hero p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-50 pb-24">
+      {/* Header */}
+      <div className="bg-gradient-hero p-6 pb-16 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+        <div className="relative z-10 max-w-lg mx-auto">
+          <div className="flex items-center gap-4 mb-6">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => navigate("/")}
-              className="bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20"
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 p-0"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-white">Teams</h1>
-              <p className="text-white/80">Manage your Kabaddi teams</p>
+              <h1 className="text-2xl font-black italic uppercase tracking-tight">My Teams</h1>
+              <p className="text-white/70 text-sm">{teams.length} teams registered</p>
             </div>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-white text-primary hover:bg-white/90">
-                <Plus className="w-4 h-4 mr-2" />
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Input
+              placeholder="Search teams..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-12 h-14 rounded-2xl bg-white border-0 text-slate-900 font-medium shadow-xl"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-lg mx-auto px-4 -mt-8">
+        {/* Create Team Button */}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full h-14 bg-white rounded-2xl shadow-lg border-2 border-dashed border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all mb-6">
+              <Plus className="w-5 h-5 mr-2" />
+              <span className="font-black uppercase tracking-widest text-xs">Create New Team</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-[32px] border-0 shadow-2xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-black italic uppercase tracking-tight text-slate-900 flex items-center gap-2">
+                <Users className="w-6 h-6 text-orange-600" />
+                Create Team
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCreateTeam} className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Team Name</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Thunder Warriors"
+                  className="h-14 rounded-2xl bg-slate-50 border-0 font-bold"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Captain Name</Label>
+                <Input
+                  value={formData.captain_name}
+                  onChange={(e) => setFormData({ ...formData, captain_name: e.target.value })}
+                  placeholder="Rahul Chaudhari"
+                  className="h-14 rounded-2xl bg-slate-50 border-0 font-bold"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full h-14 bg-orange-600 hover:bg-orange-700 rounded-2xl text-xs font-black uppercase tracking-widest">
                 Create Team
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Team</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreateTeam} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Team Name</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Warriors"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="captain">Captain Name</Label>
-                  <Input
-                    id="captain"
-                    value={formData.captain_name}
-                    onChange={(e) => setFormData({ ...formData, captain_name: e.target.value })}
-                    placeholder="John Doe"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full">
-                  Create Team
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+            </form>
+          </DialogContent>
+        </Dialog>
 
+        {/* Teams List */}
         {loading ? (
-          <div className="flex justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-600 border-t-transparent"></div>
           </div>
-        ) : teams.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                No teams yet. Create your first team to get started!
+        ) : filteredTeams.length === 0 ? (
+          <Card className="rounded-3xl border-0 shadow-lg">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                <Users className="w-10 h-10 text-slate-300" />
+              </div>
+              <p className="text-slate-400 text-center font-medium">
+                {searchQuery ? "No teams found" : "No teams yet. Create your first team!"}
               </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {teams.map((team) => (
-              <Card 
-                key={team.id} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
+          <div className="space-y-3">
+            {filteredTeams.map((team) => (
+              <Card
+                key={team.id}
+                className="rounded-3xl border-0 shadow-md hover:shadow-xl transition-all cursor-pointer group overflow-hidden"
                 onClick={() => navigate(`/teams/${team.id}`)}
               >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    {team.logo_url ? (
-                      <img src={team.logo_url} alt={team.name} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <Users className="w-5 h-5 text-primary" />
-                    )}
-                    {team.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Captain: <span className="font-medium text-foreground">{team.captain_name}</span>
-                  </p>
-                  {team.captain_phone && (
-                    <p className="text-xs text-muted-foreground mt-1">{team.captain_phone}</p>
-                  )}
+                <CardContent className="p-0">
+                  <div className="flex items-center p-4">
+                    {/* Team Logo/Avatar */}
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-black text-xl shrink-0 shadow-lg shadow-orange-500/20">
+                      {team.logo_url ? (
+                        <img src={team.logo_url} alt={team.name} className="w-full h-full rounded-2xl object-cover" />
+                      ) : (
+                        getInitials(team.name)
+                      )}
+                    </div>
+
+                    {/* Team Info */}
+                    <div className="flex-1 ml-4 min-w-0">
+                      <h3 className="font-black text-slate-900 text-lg truncate group-hover:text-orange-600 transition-colors">
+                        {team.name}
+                      </h3>
+                      <p className="text-sm text-slate-400 truncate">
+                        Captain: <span className="font-semibold text-slate-600">{team.captain_name}</span>
+                      </p>
+                      <div className="flex items-center gap-4 mt-2">
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="text-xs font-bold text-slate-500">{team.players?.[0]?.count || 0} players</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Arrow */}
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                  </div>
                 </CardContent>
               </Card>
             ))}
