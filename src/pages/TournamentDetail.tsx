@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBackNavigation } from "@/hooks/useBackNavigation";
+import { FixturesTab } from "@/components/tournament/FixturesTab";
 
 interface Tournament {
   id: string;
@@ -445,6 +446,54 @@ const TournamentDetail = () => {
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to generate fixtures",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearFixtures = async () => {
+    const confirmClear = window.confirm(
+      "Are you sure you want to clear all fixtures? This will delete all matches for this tournament."
+    );
+
+    if (!confirmClear) return;
+
+    setLoading(true);
+    try {
+      // Get all match IDs for this tournament
+      const { data: matchIds } = await supabase
+        .from('matches')
+        .select('id')
+        .eq('tournament_id', id);
+
+      if (matchIds && matchIds.length > 0) {
+        const ids = matchIds.map(m => m.id);
+
+        // Delete related data first
+        await supabase.from('match_events').delete().in('match_id', ids);
+        await supabase.from('player_match_stats').delete().in('match_id', ids);
+      }
+
+      // Delete all matches
+      const { error } = await supabase
+        .from('matches')
+        .delete()
+        .eq('tournament_id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Fixtures Cleared",
+        description: "All matches have been removed. You can now regenerate fixtures.",
+      });
+
+      await fetchMatches();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to clear fixtures",
       });
     } finally {
       setLoading(false);
@@ -894,183 +943,18 @@ const TournamentDetail = () => {
           </TabsContent>
 
           {/* 5️⃣ FIXTURES TAB (ROADMAP & SCHEDULE) */}
-          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0" >
-            {/* Fixture Generator Card */}
-            {
-              isOrganizer && matches.length === 0 && (
-                <Card className="mb-6 rounded-[28px] border-2 border-slate-100 shadow-sm overflow-hidden">
-                  <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-                    <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                      <Rocket className="w-4 h-4 text-orange-500" />
-                      Generate Fixtures
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tournament Format</label>
-                      <select
-                        value={fixtureType}
-                        onChange={(e) => setFixtureType(e.target.value)}
-                        className="w-full h-12 px-4 bg-white border-2 border-slate-200 rounded-2xl text-sm font-bold focus:border-orange-500 focus:ring-0 outline-none transition-colors"
-                      >
-                        <option value="League">🏆 League (Round Robin)</option>
-                        <option value="Knockout">⚔️ Knockout (Single Elimination)</option>
-                        <option value="League + Knockout">🏆+⚔️ League + Knockout</option>
-                        <option value="Group + Knockout">👥+⚔️ Group + Knockout</option>
-                      </select>
-                      <p className="text-[10px] text-slate-400">
-                        {fixtureType === 'League' && 'Every team plays every other team once. Best for accuracy.'}
-                        {fixtureType === 'Knockout' && 'Single elimination bracket. Lose once = out. Fast & dramatic.'}
-                        {fixtureType === 'League + Knockout' && 'Round robin first, then top 4 play knockout.'}
-                        {fixtureType === 'Group + Knockout' && 'Teams split into groups, winners advance to knockout.'}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => handleGenerateFixtures(fixtureType)}
-                      disabled={teams.length < 2 || loading}
-                      className="w-full h-12 bg-orange-600 hover:bg-orange-700 rounded-2xl text-white font-black uppercase tracking-widest text-xs"
-                    >
-                      {loading ? 'Generating...' : `Generate ${fixtureType} Fixtures`}
-                    </Button>
-                    <p className="text-[9px] text-slate-400 text-center">
-                      {teams.length} teams registered • {teams.length < 2 ? 'Need at least 2 teams' : `Will create ${fixtureType === 'League' ? (teams.length * (teams.length - 1)) / 2 : teams.length - 1}+ matches`}
-                    </p>
-                  </CardContent>
-                </Card>
-              )
-            }
-
-            {
-              matches.length === 0 && !isOrganizer ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                  <Trophy className="w-12 h-12 text-slate-200 mb-4" />
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-400 text-center px-8 leading-relaxed">
-                    No fixtures generated yet.<br />
-                    <span className="text-[10px] font-medium lowercase">Check back later for the match schedule.</span>
-                  </p>
-                </div>
-              ) : matches.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Group matches by round */}
-                  {(() => {
-                    const roundsMap: Record<string, Match[]> = {};
-                    matches.forEach(m => {
-                      const key = m.round_name || `Round ${m.round_number || 1}`;
-                      if (!roundsMap[key]) roundsMap[key] = [];
-                      roundsMap[key].push(m);
-                    });
-
-                    return Object.entries(roundsMap)
-                      .sort((a, b) => {
-                        const aNum = matches.find(m => m.round_name === a[0])?.round_number || 0;
-                        const bNum = matches.find(m => m.round_name === b[0])?.round_number || 0;
-                        return aNum - bNum;
-                      })
-                      .map(([roundName, roundMatches]) => (
-                        <div key={roundName} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                          {/* Round Header */}
-                          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2">
-                            <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.15em]">{roundName}</span>
-                            <span className="text-[9px] text-slate-400 ml-auto">{roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}</span>
-                          </div>
-
-                          {/* Matches List */}
-                          <div className="divide-y divide-slate-50">
-                            {roundMatches
-                              .sort((a, b) => Number(a.match_number) - Number(b.match_number))
-                              .map((match, idx) => {
-                                const isLive = match.status === 'live';
-                                const isDone = match.status === 'completed';
-                                const teamAWon = isDone && match.team_a_score > match.team_b_score;
-                                const teamBWon = isDone && match.team_b_score > match.team_a_score;
-
-                                return (
-                                  <div
-                                    key={match.id}
-                                    onClick={() => navigate(isDone ? `/match-summary/${match.id}` : `/matches/${match.id}/spectate`)}
-                                    className={cn(
-                                      "flex items-center px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors gap-2",
-                                      isLive && "bg-orange-50"
-                                    )}
-                                  >
-                                    {/* Match Number */}
-                                    <div className="w-6 text-center">
-                                      <span className="text-[9px] font-black text-slate-300">#{match.match_number || idx + 1}</span>
-                                    </div>
-
-                                    {/* Team A */}
-                                    <div className={cn(
-                                      "flex-1 flex items-center gap-2 min-w-0",
-                                      teamBWon && "opacity-50"
-                                    )}>
-                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                        {match.team_a?.logo_url ? (
-                                          <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <Trophy className="w-3 h-3 text-slate-300" />
-                                        )}
-                                      </div>
-                                      <span className={cn(
-                                        "text-[10px] font-bold truncate",
-                                        teamAWon ? "text-green-600" : "text-slate-700"
-                                      )}>
-                                        {match.team_a?.name || 'TBD'}
-                                      </span>
-                                    </div>
-
-                                    {/* Score / VS */}
-                                    <div className="w-16 text-center flex-shrink-0">
-                                      {isDone ? (
-                                        <div className="flex items-center justify-center gap-1">
-                                          <span className={cn("text-xs font-black", teamAWon ? "text-green-600" : "text-slate-400")}>
-                                            {match.team_a_score}
-                                          </span>
-                                          <span className="text-[8px] text-slate-300">-</span>
-                                          <span className={cn("text-xs font-black", teamBWon ? "text-green-600" : "text-slate-400")}>
-                                            {match.team_b_score}
-                                          </span>
-                                        </div>
-                                      ) : isLive ? (
-                                        <Badge className="bg-red-500 text-white text-[7px] px-1.5 py-0 animate-pulse">LIVE</Badge>
-                                      ) : (
-                                        <span className="text-[9px] font-bold text-slate-300">VS</span>
-                                      )}
-                                    </div>
-
-                                    {/* Team B */}
-                                    <div className={
-                                      cn(
-                                        "flex-1 flex items-center gap-2 min-w-0 justify-end",
-                                        teamAWon && "opacity-50"
-                                      )
-                                    }>
-                                      <span className={cn(
-                                        "text-[10px] font-bold truncate text-right",
-                                        teamBWon ? "text-green-600" : "text-slate-700"
-                                      )}>
-                                        {match.team_b?.name || 'TBD'}
-                                      </span>
-                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                        {match.team_b?.logo_url ? (
-                                          <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <Trophy className="w-3 h-3 text-slate-300" />
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Arrow */}
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        </div>
-                      ));
-                  })()}
-                </div>
-              ) : null}
+          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0">
+            <FixturesTab
+              matches={matches}
+              teams={teams}
+              tournamentType={tournament?.tournament_type || 'League'}
+              isOrganizer={isOrganizer}
+              loading={loading}
+              fixtureType={fixtureType}
+              setFixtureType={setFixtureType}
+              onGenerateFixtures={handleGenerateFixtures}
+              onClearFixtures={handleClearFixtures}
+            />
           </TabsContent>
 
           {/* 5️⃣ TEAMS TAB */}
