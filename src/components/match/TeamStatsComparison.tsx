@@ -74,7 +74,7 @@ export const TeamStatsComparison = ({
         valueA,
         valueB,
         colorA = "bg-orange-500",
-        colorB = "bg-purple-600"
+        colorB = "bg-blue-600"
     }: {
         label: string;
         valueA: number;
@@ -89,17 +89,17 @@ export const TeamStatsComparison = ({
         return (
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-2xl font-black text-slate-800">{valueA}</span>
-                    <span className="text-xs font-bold uppercase tracking-widest text-purple-600">{label}</span>
-                    <span className="text-2xl font-black text-slate-800">{valueB}</span>
+                    <span className="text-xl font-black text-white">{valueA}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">{label}</span>
+                    <span className="text-xl font-black text-white">{valueB}</span>
                 </div>
-                <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+                <div className="flex h-1.5 rounded-full overflow-hidden bg-white/5">
                     <div
-                        className={cn("h-full transition-all", colorA)}
+                        className={cn("h-full transition-all duration-1000", colorA)}
                         style={{ width: `${percentA}%` }}
                     />
                     <div
-                        className={cn("h-full transition-all", colorB)}
+                        className={cn("h-full transition-all duration-1000", colorB)}
                         style={{ width: `${percentB}%` }}
                     />
                 </div>
@@ -109,30 +109,30 @@ export const TeamStatsComparison = ({
 
     const TeamLogo = ({ team, side }: { team: { name: string; logo_url?: string }; side: 'left' | 'right' }) => (
         <div className={cn("flex items-center gap-3", side === 'right' && "flex-row-reverse")}>
-            <div className="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+            <div className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                 {team.logo_url ? (
-                    <img src={team.logo_url} alt={team.name} className="w-10 h-10 object-cover rounded-full" />
+                    <img src={team.logo_url} alt={team.name} className="w-8 h-8 object-cover rounded-xl" />
                 ) : (
-                    <Users className="w-6 h-6 text-slate-400" />
+                    <Users className="w-5 h-5 text-neutral-700" />
                 )}
             </div>
-            <div className={cn("space-y-0.5", side === 'right' && "text-right")}>
-                <p className="text-xs font-black uppercase tracking-tight text-slate-700 line-clamp-1">{team.name}</p>
+            <div className={cn("min-w-0 px-1", side === 'right' && "text-right")}>
+                <p className="text-[10px] font-black uppercase tracking-tight text-neutral-400 truncate">{team.name}</p>
             </div>
         </div>
     );
 
     return (
-        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
+        <div className="bg-white/5 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
             {/* Half Tabs */}
-            <div className="flex border-b border-slate-100">
+            <div className="flex border-b border-white/10 p-1">
                 <button
                     onClick={() => setSelectedHalf('first')}
                     className={cn(
-                        "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
+                        "flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all rounded-2xl",
                         selectedHalf === 'first'
-                            ? "bg-purple-600 text-white"
-                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                            ? "bg-white text-black shadow-lg"
+                            : "text-neutral-500 hover:text-white"
                     )}
                 >
                     First Half
@@ -140,10 +140,10 @@ export const TeamStatsComparison = ({
                 <button
                     onClick={() => setSelectedHalf('second')}
                     className={cn(
-                        "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
+                        "flex-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all rounded-2xl",
                         selectedHalf === 'second'
-                            ? "bg-purple-600 text-white"
-                            : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                            ? "bg-white text-black shadow-lg"
+                            : "text-neutral-500 hover:text-white"
                     )}
                 >
                     Second Half
@@ -151,54 +151,62 @@ export const TeamStatsComparison = ({
             </div>
 
             {/* Team Headers */}
-            <div className="px-6 py-5 border-b border-slate-100">
+            <div className="px-6 py-4 bg-white/[0.02] border-b border-white/10">
                 <div className="flex items-center justify-between">
                     <TeamLogo team={teamA} side="left" />
-                    <div className="text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-purple-600">Half Wise Comparison</p>
+                    <div className="text-center px-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Match Progress</p>
                     </div>
                     <TeamLogo team={teamB} side="right" />
                 </div>
             </div>
 
             {/* Stats Comparison Bars */}
-            <div className="px-6 py-6 space-y-6">
+            <div className="px-6 py-6 space-y-5">
                 <ComparisonBar
-                    label="Total Points"
-                    valueA={selectedHalf === 'first' ? halfData.teamA : halfData.teamA}
-                    valueB={selectedHalf === 'first' ? halfData.teamB : halfData.teamB}
+                    label="Current Score"
+                    valueA={selectedHalf === 'first' ? halfData.teamA : totalScoreA}
+                    valueB={selectedHalf === 'first' ? halfData.teamB : totalScoreB}
                 />
                 <ComparisonBar
                     label="Raid Points"
                     valueA={teamARaidPoints}
                     valueB={teamBRaidPoints}
+                    colorA="bg-orange-500"
+                    colorB="bg-blue-500"
                 />
                 <ComparisonBar
                     label="Tackle Points"
                     valueA={stats.teamA.tacklePoints}
                     valueB={stats.teamB.tacklePoints}
+                    colorA="bg-orange-400"
+                    colorB="bg-blue-400"
                 />
                 <ComparisonBar
-                    label="All Out Points"
-                    valueA={stats.teamA.allOuts * 2}
-                    valueB={stats.teamB.allOuts * 2}
+                    label="All Out"
+                    valueA={stats.teamA.allOuts}
+                    valueB={stats.teamB.allOuts}
+                    colorA="bg-red-500"
+                    colorB="bg-red-500"
                 />
                 <ComparisonBar
-                    label="Bonus Points"
+                    label="Bonus"
                     valueA={stats.teamA.bonusPoints}
                     valueB={stats.teamB.bonusPoints}
+                    colorA="bg-yellow-500"
+                    colorB="bg-yellow-500"
                 />
             </div>
 
             {/* Raids / Tackles Toggle */}
-            <div className="flex border-t border-b border-slate-100">
+            <div className="flex border-t border-white/10">
                 <button
                     onClick={() => setSelectedCategory('raids')}
                     className={cn(
-                        "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
+                        "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all border-r border-white/10",
                         selectedCategory === 'raids'
-                            ? "bg-white text-slate-900 border-b-2 border-orange-500"
-                            : "bg-slate-50 text-slate-400"
+                            ? "bg-orange-500 text-white"
+                            : "bg-black/20 text-neutral-500"
                     )}
                 >
                     Raids
@@ -206,10 +214,10 @@ export const TeamStatsComparison = ({
                 <button
                     onClick={() => setSelectedCategory('tackles')}
                     className={cn(
-                        "flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all",
+                        "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all",
                         selectedCategory === 'tackles'
-                            ? "bg-purple-600 text-white"
-                            : "bg-slate-50 text-slate-400"
+                            ? "bg-blue-500 text-white"
+                            : "bg-black/20 text-neutral-500"
                     )}
                 >
                     Tackles
@@ -217,87 +225,60 @@ export const TeamStatsComparison = ({
             </div>
 
             {/* Category Breakdown */}
-            <div className="px-6 py-5">
-                {/* Team Headers for breakdown */}
-                <div className="flex items-center justify-between mb-6">
-                    <TeamLogo team={teamA} side="left" />
-                    <div className="text-center">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-purple-600">Points Breakdown</p>
-                    </div>
-                    <TeamLogo team={teamB} side="right" />
-                </div>
-
+            <div className="px-6 py-6 bg-black/40">
                 {selectedCategory === 'raids' ? (
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                         <div className="flex items-center justify-between">
-                            <span className="text-3xl font-black text-orange-500">{stats.teamA.raids}</span>
-                            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Total Raids</span>
-                            <span className="text-3xl font-black text-purple-600">{stats.teamB.raids}</span>
+                            <span className="text-2xl font-black text-orange-500">{stats.teamA.raids}</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Total Raids</span>
+                            <span className="text-2xl font-black text-blue-500">{stats.teamB.raids}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-slate-700">{stats.teamA.successfulRaids}</span>
-                            <span className="px-4 py-1.5 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Successful Raids</span>
-                            <span className="text-xl font-black text-slate-700">{stats.teamB.successfulRaids}</span>
+                        <div className="flex items-baseline justify-between pt-2">
+                            <span className="text-lg font-black text-white">{stats.teamA.successfulRaids}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-600">Success</span>
+                            <span className="text-lg font-black text-white">{stats.teamB.successfulRaids}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-slate-700">{stats.teamA.touchPoints}</span>
-                            <span className="px-4 py-1.5 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Touch Points</span>
-                            <span className="text-xl font-black text-slate-700">{stats.teamB.touchPoints}</span>
+                        <div className="flex items-baseline justify-between">
+                            <span className="text-lg font-black text-white">{stats.teamA.touchPoints}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-600">Touch</span>
+                            <span className="text-lg font-black text-white">{stats.teamB.touchPoints}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-slate-700">{stats.teamA.bonusPoints}</span>
-                            <span className="px-4 py-1.5 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Bonus Points</span>
-                            <span className="text-xl font-black text-slate-700">{stats.teamB.bonusPoints}</span>
+                        <div className="flex items-baseline justify-between pb-4">
+                            <span className="text-lg font-black text-white">{stats.teamA.bonusPoints}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-600">Bonus</span>
+                            <span className="text-lg font-black text-white">{stats.teamB.bonusPoints}</span>
                         </div>
                         {/* Raid Success Rate */}
-                        <div className="pt-4 border-t border-slate-100">
+                        <div className="pt-4 border-t border-white/5">
                             <div className="flex items-center justify-between">
-                                <span className="text-2xl font-black text-orange-500">{teamARaidSuccess}%</span>
-                                <div className="flex-1 mx-6">
-                                    <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Raid Success Rate</p>
-                                    <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+                                <span className="text-xl font-black text-orange-500">{teamARaidSuccess}%</span>
+                                <div className="flex-1 mx-4">
+                                    <p className="text-center text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-2">Efficiency</p>
+                                    <div className="flex h-1 rounded-full overflow-hidden bg-white/5">
                                         <div className="h-full bg-orange-500" style={{ width: `${teamARaidSuccess}%` }} />
-                                        <div className="h-full bg-purple-600" style={{ width: `${teamBRaidSuccess}%` }} />
+                                        <div className="h-full bg-blue-500" style={{ width: `${teamBRaidSuccess}%` }} />
                                     </div>
                                 </div>
-                                <span className="text-2xl font-black text-purple-600">{teamBRaidSuccess}%</span>
+                                <span className="text-xl font-black text-blue-500">{teamBRaidSuccess}%</span>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-5">
                         <div className="flex items-center justify-between">
-                            <span className="text-3xl font-black text-orange-500">{stats.teamA.tacklePoints}</span>
-                            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Total Tackles</span>
-                            <span className="text-3xl font-black text-purple-600">{stats.teamB.tacklePoints}</span>
+                            <span className="text-2xl font-black text-orange-500">{stats.teamA.tacklePoints}</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Total Tackles</span>
+                            <span className="text-2xl font-black text-blue-500">{stats.teamB.tacklePoints}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-slate-700">{Math.floor(stats.teamA.tacklePoints * 0.6)}</span>
-                            <span className="px-4 py-1.5 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Successful Tackles</span>
-                            <span className="text-xl font-black text-slate-700">{Math.floor(stats.teamB.tacklePoints * 0.6)}</span>
+                        <div className="flex items-baseline justify-between pt-2">
+                            <span className="text-lg font-black text-white">{Math.floor(stats.teamA.tacklePoints * 0.6)}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-600">Success</span>
+                            <span className="text-lg font-black text-white">{Math.floor(stats.teamB.tacklePoints * 0.6)}</span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xl font-black text-slate-700">{Math.floor(stats.teamA.tacklePoints * 0.15)}</span>
-                            <span className="px-4 py-1.5 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Super Tackles</span>
-                            <span className="text-xl font-black text-slate-700">{Math.floor(stats.teamB.tacklePoints * 0.15)}</span>
-                        </div>
-                        {/* Tackle Success Rate */}
-                        <div className="pt-4 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                                <span className="text-2xl font-black text-orange-500">
-                                    {stats.teamA.raids > 0 ? ((stats.teamA.tacklePoints / stats.teamA.raids) * 100).toFixed(1) : '0'}%
-                                </span>
-                                <div className="flex-1 mx-6">
-                                    <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Tackle Success Rate</p>
-                                    <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
-                                        <div className="h-full bg-orange-500" style={{ width: '40%' }} />
-                                        <div className="h-full bg-purple-600" style={{ width: '30%' }} />
-                                    </div>
-                                </div>
-                                <span className="text-2xl font-black text-purple-600">
-                                    {stats.teamB.raids > 0 ? ((stats.teamB.tacklePoints / stats.teamB.raids) * 100).toFixed(1) : '0'}%
-                                </span>
-                            </div>
+                        <div className="flex items-baseline justify-between">
+                            <span className="text-lg font-black text-white">{Math.floor(stats.teamA.tacklePoints * 0.15)}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-neutral-600">Super Tackles</span>
+                            <span className="text-lg font-black text-white">{Math.floor(stats.teamB.tacklePoints * 0.15)}</span>
                         </div>
                     </div>
                 )}

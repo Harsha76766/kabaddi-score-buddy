@@ -3,76 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Post, PostCard } from "./PostCard";
 import { Loader2, Activity } from "lucide-react";
 
-// Rich dummy data to showcase the new Engagement Engine
-const dummyPosts: Post[] = [
-    {
-        id: "promo-1",
-        type: "live_promo",
-        content: "Team A vs Team B is LIVE",
-        match_id: "dummy-match",
-        match_data: {
-            team_a_name: "Puneri Paltan",
-            team_b_name: "Dabang Delhi"
-        },
-        created_at: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
-        user_id: "system",
-        profiles: { name: "RaidBook Live", avatar_url: undefined },
-        likes_count: 850,
-        has_liked: false
-    },
-    {
-        id: "clip-1",
-        type: "clip",
-        content: "Unbelievable escape by the raider! 🚀 #KabaddiHighlights",
-        video_url: "https://v1.cdnpk.net/videvo_files/video/free/2013-08/small_watermarked/hd0544_preview.mp4", // Sample video
-        image_url: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=600&h=800&fit=crop",
-        created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-        user_id: "dummy-1",
-        profiles: { name: "Kabaddi King", avatar_url: undefined },
-        likes_count: 1240,
-        has_liked: true
-    },
-    {
-        id: "result-1",
-        type: "match_result",
-        content: "Final score from the Championship Match!",
-        match_id: "dummy-result",
-        match_data: {
-            team_a_name: "Bengal Warriors",
-            team_b_name: "U Mumba",
-            team_a_score: 42,
-            team_b_score: 38,
-            mvp_name: "Maninder Singh"
-        },
-        created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-        user_id: "dummy-2",
-        profiles: { name: "Match Updates", avatar_url: undefined },
-        likes_count: 560,
-        has_liked: false
-    },
-    {
-        id: "tourney-1",
-        type: "tournament",
-        content: "Register now for the Summer Kabaddi League!",
-        tournament_id: "dummy-tourney",
-        tournament_data: {
-            name: "Mumbai Summer Kabaddi League",
-            location: "Dharavi Stadium",
-            prize_pool: "₹1,00,000"
-        },
-        image_url: "https://images.unsplash.com/photo-1526676037777-05a232554f77?w=800&h=450&fit=crop",
-        created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        user_id: "dummy-3",
-        profiles: { name: "Tournament Board", avatar_url: undefined },
-        likes_count: 2100,
-        has_liked: false
-    }
-];
-
 export const Feed = () => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
-    const [view, setView] = useState<'latest' | 'nearby'>('latest');
 
     const fetchPosts = async () => {
         try {
@@ -86,24 +19,25 @@ export const Feed = () => {
                     profiles:user_id (name, avatar_url),
                     likes:post_likes (user_id)
                 `)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(10);
 
             if (error) throw error;
 
-            if (data) {
+            if (data && data.length > 0) {
                 const formattedPosts: Post[] = data.map((post: any) => ({
                     ...post,
                     likes_count: post.likes?.length || 0,
                     has_liked: user ? post.likes?.some((like: any) => like.user_id === user.id) : false
                 }));
-                // Merge real posts with showcase dummies
-                setPosts([...formattedPosts, ...dummyPosts]);
+                setPosts(formattedPosts);
             } else {
-                setPosts(dummyPosts);
+                // Show a single placeholder if no posts
+                setPosts([]);
             }
         } catch (error) {
             console.error("Error fetching posts:", error);
-            setPosts(dummyPosts);
+            setPosts([]);
         } finally {
             setLoading(false);
         }
@@ -116,7 +50,6 @@ export const Feed = () => {
         const postsChannel = supabase
             .channel('realtime_posts')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
-                // Add new post to the top of the feed
                 const newPost = {
                     ...payload.new,
                     profiles: { name: 'New User', avatar_url: undefined },
@@ -126,11 +59,9 @@ export const Feed = () => {
                 setPosts(prev => [newPost, ...prev]);
             })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, () => {
-                // Refetch to get updated data
                 fetchPosts();
             })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
-                // Remove deleted post from state
                 setPosts(prev => prev.filter(p => p.id !== (payload.old as any).id));
             })
             .subscribe();
@@ -140,30 +71,33 @@ export const Feed = () => {
         };
     }, []);
 
-    return (
-        <div className="max-w-lg mx-auto bg-transparent min-h-screen">
-            {loading ? (
-                <div className="flex justify-center py-20">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                </div>
-            ) : (
-                <div className="divide-y divide-white/5">
-                    {posts.map(post => (
-                        <PostCard key={post.id} post={post} />
-                    ))}
+    if (loading) {
+        return (
+            <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+            </div>
+        );
+    }
 
-                    {/* Empty State / End of Feed */}
-                    <div className="py-20 px-6 text-center space-y-4">
-                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                            <Activity className="w-8 h-8 text-neutral-700" />
-                        </div>
-                        <div className="space-y-1">
-                            <h4 className="text-white font-black uppercase tracking-tight">You're all caught up!</h4>
-                            <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest">Follow more teams to see their highlights</p>
-                        </div>
-                    </div>
+    if (posts.length === 0) {
+        return (
+            <div className="py-12 px-6 text-center space-y-4">
+                <div className="w-14 h-14 bg-white/5 rounded-full flex items-center justify-center mx-auto">
+                    <Activity className="w-6 h-6 text-neutral-600" />
                 </div>
-            )}
+                <div className="space-y-1">
+                    <h4 className="text-white font-bold text-sm">No posts yet</h4>
+                    <p className="text-neutral-500 text-xs">Follow teams and players to see updates</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-4 pb-8">
+            {posts.map(post => (
+                <PostCard key={post.id} post={post} />
+            ))}
         </div>
     );
 };

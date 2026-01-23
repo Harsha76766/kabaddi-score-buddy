@@ -468,6 +468,17 @@ const LiveScoring = () => {
         .single();
 
       if (matchError) throw matchError;
+
+      // Redirect completed matches to summary page
+      if (matchData.status === 'completed') {
+        toast({
+          title: "Match Completed",
+          description: "This match has ended. Redirecting to match summary...",
+        });
+        navigate(`/match-summary/${id}`);
+        return;
+      }
+
       setMatch(matchData);
 
       // Read match settings if available
@@ -646,13 +657,35 @@ const LiveScoring = () => {
 
     setMatch(prev => prev ? { ...prev, team_a_score: newScoreA, team_b_score: newScoreB } : null);
 
+    // Update Scores
     await (supabase.from("matches") as any).update({
       team_a_score: newScoreA,
       team_b_score: newScoreB,
       current_timer: matchTimer
     }).eq("id", match.id);
 
-    // Removed toast
+    // IMPORTANT: Record an event for the timeline!
+    await (supabase as any).rpc('insert_match_event', {
+      p_match_id: match.id,
+      p_event_type: 'technical',
+      p_raider_id: null,
+      p_defender_ids: [],
+      p_team_id: team === "A" ? match.team_a_id : match.team_b_id,
+      p_points_awarded: 1,
+      p_raid_time: 0,
+      p_is_do_or_die: false,
+      p_is_all_out: false,
+      p_event_data: {
+        half,
+        isTechnical: true,
+        teamName: team === "A" ? teamA?.name : teamB?.name
+      }
+    });
+
+    toast({
+      title: "Technical Point",
+      description: `Point awarded to ${team === "A" ? teamA?.name : teamB?.name}.`
+    });
   };
 
 
@@ -1173,7 +1206,7 @@ const LiveScoring = () => {
     setIsSelectingRaider(false);
   };
 
-  const handleNextRaid = () => {
+  const handleNextRaid = async () => {
     if (raidState !== 'IDLE') return;
     setIsSelectingRaider(true);
     setRaidState('RAIDING');
@@ -1185,6 +1218,30 @@ const LiveScoring = () => {
       matchAudio.playDODBuzzer();
     } else {
       matchAudio.playRaidStart();
+    }
+
+    // Broadcast raid_start event to spectators for real-time timer sync
+    if (match) {
+      try {
+        await (supabase as any).rpc('insert_match_event', {
+          p_match_id: match.id,
+          p_event_type: 'raid_start',
+          p_raider_id: null,
+          p_defender_ids: [],
+          p_team_id: activeTeam === 'A' ? match.team_a_id : match.team_b_id,
+          p_points_awarded: 0,
+          p_raid_time: settings.raidDuration,
+          p_is_do_or_die: isDOD,
+          p_is_all_out: false,
+          p_event_data: {
+            half,
+            raidDuration: settings.raidDuration,
+            isDOD
+          }
+        });
+      } catch (e) {
+        console.error('Failed to broadcast raid_start:', e);
+      }
     }
   };
 
@@ -1246,10 +1303,10 @@ const LiveScoring = () => {
 
           <Button
             variant="outline"
-            onClick={() => navigate('/matches')}
+            onClick={handleEndMatch}
             className="border-slate-600 text-slate-300"
           >
-            Back to Matches
+            Close & Save Match
           </Button>
         </div>
       )}

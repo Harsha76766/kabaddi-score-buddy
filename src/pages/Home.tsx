@@ -116,21 +116,60 @@ const Home = () => {
         if (playerRecords && playerRecords.length > 0) {
           const totalMatches = playerRecords.reduce((acc, curr) => acc + (curr.matches_played || 0), 0);
           const totalPoints = playerRecords.reduce((acc, curr) => acc + (curr.total_raid_points || 0) + (curr.total_tackle_points || 0), 0);
+          // Calculate actual win rate from matches
+          const { data: matchStats } = await supabase
+            .from('player_match_stats')
+            .select('match_id, matches(status, winner_team_id)')
+            .in('player_id', playerRecords.map(p => p.id));
+
+          let wins = 0;
+          if (matchStats) {
+            const completedMatches = matchStats.filter((ms: any) => ms.matches?.status === 'completed');
+            wins = completedMatches.filter((ms: any) => {
+              const playerTeamId = playerRecords.find(p => p.id === ms.player_id)?.team_id;
+              return ms.matches?.winner_team_id === playerTeamId;
+            }).length;
+          }
+          const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+
           setUserStats({
             matches: totalMatches,
             points: totalPoints,
             avg: totalMatches > 0 ? (totalPoints / totalMatches).toFixed(1) : 0,
-            winRate: 64 // Mocked for now
+            winRate
           });
 
-          // Fetch Teams
+          // Fetch Teams with win/loss stats
           const teamIds = playerRecords.map(p => p.team_id).filter(Boolean);
           if (teamIds.length > 0) {
             const { data: teams } = await supabase
               .from('teams')
               .select('*')
               .in('id', teamIds);
-            setUserTeams(teams || []);
+
+            // Calculate wins/losses for each team
+            if (teams) {
+              const { data: allMatches } = await (supabase as any)
+                .from('matches')
+                .select('team_a_id, team_b_id, team_a_score, team_b_score, status')
+                .eq('status', 'completed')
+                .or(`team_a_id.in.(${teamIds.join(',')}),team_b_id.in.(${teamIds.join(',')})`);
+
+              const teamsWithStats = teams.map((team: any) => {
+                const teamMatches = (allMatches || []).filter((m: any) =>
+                  m.team_a_id === team.id || m.team_b_id === team.id
+                );
+                let wins = 0, losses = 0;
+                teamMatches.forEach((m: any) => {
+                  const isTeamA = m.team_a_id === team.id;
+                  const won = isTeamA ? m.team_a_score > m.team_b_score : m.team_b_score > m.team_a_score;
+                  if (won) wins++;
+                  else losses++;
+                });
+                return { ...team, wins, losses };
+              });
+              setUserTeams(teamsWithStats);
+            }
           }
         }
       }
@@ -160,25 +199,47 @@ const Home = () => {
   };
 
   const fetchActivity = async () => {
-    // In a real app, this would be a join on match_events, achievements, and team_members
-    setActivities([
-      {
-        id: '1',
-        type: 'MATCH_COMPLETED',
-        title: 'Match Finished',
-        message: 'Warriors won against Eagles by 12 points',
-        time: '2h ago',
-        icon: <Trophy className="w-4 h-4 text-yellow-500" />
-      },
-      {
-        id: '2',
-        type: 'ACHIEVEMENT',
-        title: 'New Milestone',
-        message: 'You reached 100 Raid Points!',
-        time: 'Yesterday',
-        icon: <Star className="w-4 h-4 text-orange-500 fill-orange-500" />
+    try {
+      // Fetch recent completed matches
+      const { data: recentMatches } = await (supabase as any)
+        .from('matches')
+        .select('id, team_a_score, team_b_score, status, created_at, team_a:team_a_id(name), team_b:team_b_id(name)')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (recentMatches && recentMatches.length > 0) {
+        const activityItems = recentMatches.map((match: any, idx: number) => {
+          const winner = match.team_a_score > match.team_b_score ? match.team_a?.name : match.team_b?.name;
+          const scoreDiff = Math.abs(match.team_a_score - match.team_b_score);
+          const timeAgo = getTimeAgo(new Date(match.created_at));
+          return {
+            id: match.id,
+            type: 'MATCH_COMPLETED',
+            title: 'Match Finished',
+            message: `${winner} won by ${scoreDiff} points`,
+            time: timeAgo,
+            icon: <Trophy className="w-4 h-4 text-yellow-500" />
+          };
+        });
+        setActivities(activityItems);
+      } else {
+        setActivities([]);
       }
-    ]);
+    } catch (error) {
+      console.error('Error fetching activity:', error);
+      setActivities([]);
+    }
+  };
+
+  const getTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
   };
 
   if (loading) {
@@ -524,11 +585,11 @@ const Home = () => {
                 <div className="mt-4 flex flex-col gap-1.5 w-full">
                   <div className="bg-white/5 rounded-xl py-1.5 px-3 flex items-center justify-between">
                     <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Wins</span>
-                    <span className="text-[10px] font-black text-green-500">12</span>
+                    <span className="text-[10px] font-black text-green-500">{team.wins || 0}</span>
                   </div>
                   <div className="bg-white/5 rounded-xl py-1.5 px-3 flex items-center justify-between">
                     <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Loss</span>
-                    <span className="text-[10px] font-black text-red-500">4</span>
+                    <span className="text-[10px] font-black text-red-500">{team.losses || 0}</span>
                   </div>
                 </div>
               </div>
