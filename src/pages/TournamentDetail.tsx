@@ -184,8 +184,23 @@ const TournamentDetail = () => {
   };
 
   const fetchSponsors = async () => {
-    // Sponsors table doesn't exist in database - skip this feature
-    setSponsors([]);
+    try {
+      const { data, error } = await supabase
+        .from('sponsors')
+        .select('*')
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setSponsors(data.map(s => ({
+        id: s.id,
+        name: s.name,
+        image_url: s.logo_url, // map logo_url to image_url
+        link_url: null, // sponsors table doesn't have link_url yet
+        placement: s.type // map type to placement
+      })) || []);
+    } catch (error) {
+      console.error('Error fetching sponsors:', error);
+    }
   };
 
   const fetchTeams = async () => {
@@ -242,6 +257,8 @@ const TournamentDetail = () => {
           id,
           match_name,
           match_number,
+          round_name,
+          group_name,
           match_date,
           venue,
           status,
@@ -249,33 +266,23 @@ const TournamentDetail = () => {
           team_b_score,
           team_a_id,
           team_b_id,
+          next_match_id,
+          is_team_a_winner_slot,
           created_by,
           team_a:teams!matches_team_a_id_fkey (name, id, logo_url),
           team_b:teams!matches_team_b_id_fkey (name, id, logo_url)
         `)
         .eq('tournament_id', id)
-        .order('match_date', { ascending: true });
+        .order('match_date', { ascending: true }); // Ascending to find next match
 
       if (error) throw error;
+      const sortedMatches = data || [];
+      setMatches(sortedMatches); // Display ascending (top to bottom) as requested
 
-      // Map to Match interface
-      const sortedMatches: Match[] = (data || []).map((m: any) => ({
-        id: m.id,
-        match_name: m.match_name,
-        match_date: m.match_date,
-        venue: m.venue,
-        status: m.status,
-        team_a_score: m.team_a_score || 0,
-        team_b_score: m.team_b_score || 0,
-        team_a_id: m.team_a_id,
-        team_b_id: m.team_b_id,
-        team_a: m.team_a,
-        team_b: m.team_b,
-        created_by: m.created_by,
-      }));
-
-      setMatches(sortedMatches);
-
+      // Detect "Current Match" for Header Strip
+      // 1. Any LIVE match
+      // 2. The next UPCOMING match
+      // 3. The last COMPLETED match
       const liveMatch = sortedMatches.find(m => m.status === 'live');
       const upcomingMatch = sortedMatches.find(m => m.status === 'scheduled');
       const lastCompletedMatch = [...sortedMatches].reverse().find(m => m.status === 'completed');
@@ -421,11 +428,16 @@ const TournamentDetail = () => {
       }
 
       const matchesToInsert = fixtures.map(f => ({
+        id: f.id,
         tournament_id: id,
         team_a_id: f.team_a_id,
         team_b_id: f.team_b_id,
         match_name: `${f.round_name} - Match ${f.match_number}`,
-        match_number: f.match_number,
+        round_name: f.round_name,
+        round_number: f.round_number,
+        match_number: String(f.match_number),
+        next_match_id: f.next_match_id,
+        is_team_a_winner_slot: f.is_team_a_winner_slot,
         status: 'scheduled',
         match_date: new Date().toISOString(),
         created_by: currentUserId,
@@ -474,11 +486,11 @@ const TournamentDetail = () => {
         // 1. Delete match_events (references matches)
         await supabase.from('match_events').delete().in('match_id', ids);
 
-        // 2. Delete match_comments if they exist (table may not exist in schema)
-        await (supabase as any).from('match_comments').delete().in('match_id', ids);
+        // 2. Delete match_comments if they exist
+        await supabase.from('match_comments').delete().in('match_id', ids);
 
-        // 3. Delete match_reactions if they exist (table may not exist in schema)
-        await (supabase as any).from('match_reactions').delete().in('match_id', ids);
+        // 3. Delete match_reactions if they exist  
+        await supabase.from('match_reactions').delete().in('match_id', ids);
 
         // 4. Delete player_match_stats (ADDED - was missing!)
         await supabase.from('player_match_stats').delete().in('match_id', ids);
@@ -493,7 +505,6 @@ const TournamentDetail = () => {
       // 7. Delete tournament teams
       await supabase.from('tournament_teams').delete().eq('tournament_id', id);
 
-      // Note: sponsors table doesn't exist
       // Finally delete the tournament
       const { error } = await supabase
         .from('tournaments')
@@ -894,187 +905,182 @@ const TournamentDetail = () => {
           </TabsContent>
 
           {/* 5️⃣ FIXTURES TAB (ROADMAP & SCHEDULE) */}
-          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0" >
+          <TabsContent value="fixtures" className="mt-6 focus-visible:outline-none ring-0 border-0">
             {/* Fixture Generator Card */}
-            {
-              isOrganizer && matches.length === 0 && (
-                <Card className="mb-6 rounded-[28px] border-2 border-slate-100 shadow-sm overflow-hidden">
-                  <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
-                    <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                      <Rocket className="w-4 h-4 text-orange-500" />
-                      Generate Fixtures
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tournament Format</label>
-                      <select
-                        value={fixtureType}
-                        onChange={(e) => setFixtureType(e.target.value)}
-                        className="w-full h-12 px-4 bg-white border-2 border-slate-200 rounded-2xl text-sm font-bold focus:border-orange-500 focus:ring-0 outline-none transition-colors"
-                      >
-                        <option value="League">🏆 League (Round Robin)</option>
-                        <option value="Knockout">⚔️ Knockout (Single Elimination)</option>
-                        <option value="League + Knockout">🏆+⚔️ League + Knockout</option>
-                        <option value="Group + Knockout">👥+⚔️ Group + Knockout</option>
-                      </select>
-                      <p className="text-[10px] text-slate-400">
-                        {fixtureType === 'League' && 'Every team plays every other team once. Best for accuracy.'}
-                        {fixtureType === 'Knockout' && 'Single elimination bracket. Lose once = out. Fast & dramatic.'}
-                        {fixtureType === 'League + Knockout' && 'Round robin first, then top 4 play knockout.'}
-                        {fixtureType === 'Group + Knockout' && 'Teams split into groups, winners advance to knockout.'}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => handleGenerateFixtures(fixtureType)}
-                      disabled={teams.length < 2 || loading}
-                      className="w-full h-12 bg-orange-600 hover:bg-orange-700 rounded-2xl text-white font-black uppercase tracking-widest text-xs"
+            {isOrganizer && matches.length === 0 && (
+              <Card className="mb-6 rounded-[28px] border-2 border-slate-100 shadow-sm overflow-hidden">
+                <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
+                  <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                    <Rocket className="w-4 h-4 text-orange-500" />
+                    Generate Fixtures
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tournament Format</label>
+                    <select
+                      value={fixtureType}
+                      onChange={(e) => setFixtureType(e.target.value)}
+                      className="w-full h-12 px-4 bg-white border-2 border-slate-200 rounded-2xl text-sm font-bold focus:border-orange-500 focus:ring-0 outline-none transition-colors"
                     >
-                      {loading ? 'Generating...' : `Generate ${fixtureType} Fixtures`}
-                    </Button>
-                    <p className="text-[9px] text-slate-400 text-center">
-                      {teams.length} teams registered • {teams.length < 2 ? 'Need at least 2 teams' : `Will create ${fixtureType === 'League' ? (teams.length * (teams.length - 1)) / 2 : teams.length - 1}+ matches`}
+                      <option value="League">🏆 League (Round Robin)</option>
+                      <option value="Knockout">⚔️ Knockout (Single Elimination)</option>
+                      <option value="League + Knockout">🏆+⚔️ League + Knockout</option>
+                      <option value="Group + Knockout">👥+⚔️ Group + Knockout</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400">
+                      {fixtureType === 'League' && 'Every team plays every other team once. Best for accuracy.'}
+                      {fixtureType === 'Knockout' && 'Single elimination bracket. Lose once = out. Fast & dramatic.'}
+                      {fixtureType === 'League + Knockout' && 'Round robin first, then top 4 play knockout.'}
+                      {fixtureType === 'Group + Knockout' && 'Teams split into groups, winners advance to knockout.'}
                     </p>
-                  </CardContent>
-                </Card>
-              )
-            }
-
-            {
-              matches.length === 0 && !isOrganizer ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                  <Trophy className="w-12 h-12 text-slate-200 mb-4" />
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-400 text-center px-8 leading-relaxed">
-                    No fixtures generated yet.<br />
-                    <span className="text-[10px] font-medium lowercase">Check back later for the match schedule.</span>
+                  </div>
+                  <Button
+                    onClick={() => handleGenerateFixtures(fixtureType)}
+                    disabled={teams.length < 2 || loading}
+                    className="w-full h-12 bg-orange-600 hover:bg-orange-700 rounded-2xl text-white font-black uppercase tracking-widest text-xs"
+                  >
+                    {loading ? 'Generating...' : `Generate ${fixtureType} Fixtures`}
+                  </Button>
+                  <p className="text-[9px] text-slate-400 text-center">
+                    {teams.length} teams registered • {teams.length < 2 ? 'Need at least 2 teams' : `Will create ${fixtureType === 'League' ? (teams.length * (teams.length - 1)) / 2 : teams.length - 1}+ matches`}
                   </p>
-                </div>
-              ) : matches.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Group matches by round */}
-                  {(() => {
-                    const roundsMap: Record<string, Match[]> = {};
-                    matches.forEach(m => {
-                      const key = m.round_name || `Round ${m.round_number || 1}`;
-                      if (!roundsMap[key]) roundsMap[key] = [];
-                      roundsMap[key].push(m);
-                    });
+                </CardContent>
+              </Card>
+            )}
 
-                    return Object.entries(roundsMap)
-                      .sort((a, b) => {
-                        const aNum = matches.find(m => m.round_name === a[0])?.round_number || 0;
-                        const bNum = matches.find(m => m.round_name === b[0])?.round_number || 0;
-                        return aNum - bNum;
-                      })
-                      .map(([roundName, roundMatches]) => (
-                        <div key={roundName} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                          {/* Round Header */}
-                          <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2">
-                            <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.15em]">{roundName}</span>
-                            <span className="text-[9px] text-slate-400 ml-auto">{roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}</span>
-                          </div>
+            {matches.length === 0 && !isOrganizer ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
+                <Trophy className="w-12 h-12 text-slate-200 mb-4" />
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400 text-center px-8 leading-relaxed">
+                  No fixtures generated yet.<br />
+                  <span className="text-[10px] font-medium lowercase">Check back later for the match schedule.</span>
+                </p>
+              </div>
+            ) : matches.length > 0 ? (
+              <div className="space-y-6">
+                {/* Group matches by round */}
+                {(() => {
+                  const roundsMap: Record<string, Match[]> = {};
+                  matches.forEach(m => {
+                    const key = m.round_name || `Round ${m.round_number || 1}`;
+                    if (!roundsMap[key]) roundsMap[key] = [];
+                    roundsMap[key].push(m);
+                  });
 
-                          {/* Matches List */}
-                          <div className="divide-y divide-slate-50">
-                            {roundMatches
-                              .sort((a, b) => Number(a.match_number) - Number(b.match_number))
-                              .map((match, idx) => {
-                                const isLive = match.status === 'live';
-                                const isDone = match.status === 'completed';
-                                const teamAWon = isDone && match.team_a_score > match.team_b_score;
-                                const teamBWon = isDone && match.team_b_score > match.team_a_score;
+                  return Object.entries(roundsMap)
+                    .sort((a, b) => {
+                      const aNum = matches.find(m => m.round_name === a[0])?.round_number || 0;
+                      const bNum = matches.find(m => m.round_name === b[0])?.round_number || 0;
+                      return aNum - bNum;
+                    })
+                    .map(([roundName, roundMatches]) => (
+                      <div key={roundName} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                        {/* Round Header */}
+                        <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center gap-2">
+                          <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                          <span className="text-[10px] font-black uppercase tracking-[0.15em]">{roundName}</span>
+                          <span className="text-[9px] text-slate-400 ml-auto">{roundMatches.length} match{roundMatches.length !== 1 ? 'es' : ''}</span>
+                        </div>
 
-                                return (
-                                  <div
-                                    key={match.id}
-                                    onClick={() => navigate(isDone ? `/match-summary/${match.id}` : `/matches/${match.id}/spectate`)}
-                                    className={cn(
-                                      "flex items-center px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors gap-2",
-                                      isLive && "bg-orange-50"
-                                    )}
-                                  >
-                                    {/* Match Number */}
-                                    <div className="w-6 text-center">
-                                      <span className="text-[9px] font-black text-slate-300">#{match.match_number || idx + 1}</span>
-                                    </div>
+                        {/* Matches List */}
+                        <div className="divide-y divide-slate-50">
+                          {roundMatches
+                            .sort((a, b) => Number(a.match_number) - Number(b.match_number))
+                            .map((match, idx) => {
+                              const isLive = match.status === 'live';
+                              const isDone = match.status === 'completed';
+                              const teamAWon = isDone && match.team_a_score > match.team_b_score;
+                              const teamBWon = isDone && match.team_b_score > match.team_a_score;
 
-                                    {/* Team A */}
-                                    <div className={cn(
-                                      "flex-1 flex items-center gap-2 min-w-0",
-                                      teamBWon && "opacity-50"
-                                    )}>
-                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                        {match.team_a?.logo_url ? (
-                                          <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <Trophy className="w-3 h-3 text-slate-300" />
-                                        )}
-                                      </div>
-                                      <span className={cn(
-                                        "text-[10px] font-bold truncate",
-                                        teamAWon ? "text-green-600" : "text-slate-700"
-                                      )}>
-                                        {match.team_a?.name || 'TBD'}
-                                      </span>
-                                    </div>
+                              return (
+                                <div
+                                  key={match.id}
+                                  onClick={() => navigate(isDone ? `/match-summary/${match.id}` : `/matches/${match.id}/spectate`)}
+                                  className={cn(
+                                    "flex items-center px-3 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors gap-2",
+                                    isLive && "bg-orange-50"
+                                  )}
+                                >
+                                  {/* Match Number */}
+                                  <div className="w-6 text-center">
+                                    <span className="text-[9px] font-black text-slate-300">#{match.match_number || idx + 1}</span>
+                                  </div>
 
-                                    {/* Score / VS */}
-                                    <div className="w-16 text-center flex-shrink-0">
-                                      {isDone ? (
-                                        <div className="flex items-center justify-center gap-1">
-                                          <span className={cn("text-xs font-black", teamAWon ? "text-green-600" : "text-slate-400")}>
-                                            {match.team_a_score}
-                                          </span>
-                                          <span className="text-[8px] text-slate-300">-</span>
-                                          <span className={cn("text-xs font-black", teamBWon ? "text-green-600" : "text-slate-400")}>
-                                            {match.team_b_score}
-                                          </span>
-                                        </div>
-                                      ) : isLive ? (
-                                        <Badge className="bg-red-500 text-white text-[7px] px-1.5 py-0 animate-pulse">LIVE</Badge>
+                                  {/* Team A */}
+                                  <div className={cn(
+                                    "flex-1 flex items-center gap-2 min-w-0",
+                                    teamBWon && "opacity-50"
+                                  )}>
+                                    <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {match.team_a?.logo_url ? (
+                                        <img src={match.team_a.logo_url} className="w-full h-full object-cover" />
                                       ) : (
-                                        <span className="text-[9px] font-bold text-slate-300">VS</span>
+                                        <Trophy className="w-3 h-3 text-slate-300" />
                                       )}
                                     </div>
-
-                                    {/* Team B */}
-                                    <div className={
-                                      cn(
-                                        "flex-1 flex items-center gap-2 min-w-0 justify-end",
-                                        teamAWon && "opacity-50"
-                                      )
-                                    }>
-                                      <span className={cn(
-                                        "text-[10px] font-bold truncate text-right",
-                                        teamBWon ? "text-green-600" : "text-slate-700"
-                                      )}>
-                                        {match.team_b?.name || 'TBD'}
-                                      </span>
-                                      <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                        {match.team_b?.logo_url ? (
-                                          <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <Trophy className="w-3 h-3 text-slate-300" />
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Arrow */}
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
+                                    <span className={cn(
+                                      "text-[10px] font-bold truncate",
+                                      teamAWon ? "text-green-600" : "text-slate-700"
+                                    )}>
+                                      {match.team_a?.name || 'TBD'}
+                                    </span>
                                   </div>
-                                );
-                              })}
-                          </div>
+
+                                  {/* Score / VS */}
+                                  <div className="w-16 text-center flex-shrink-0">
+                                    {isDone ? (
+                                      <div className="flex items-center justify-center gap-1">
+                                        <span className={cn("text-xs font-black", teamAWon ? "text-green-600" : "text-slate-400")}>
+                                          {match.team_a_score}
+                                        </span>
+                                        <span className="text-[8px] text-slate-300">-</span>
+                                        <span className={cn("text-xs font-black", teamBWon ? "text-green-600" : "text-slate-400")}>
+                                          {match.team_b_score}
+                                        </span>
+                                      </div>
+                                    ) : isLive ? (
+                                      <Badge className="bg-red-500 text-white text-[7px] px-1.5 py-0 animate-pulse">LIVE</Badge>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-slate-300">VS</span>
+                                    )}
+                                  </div>
+
+                                  {/* Team B */}
+                                  <div className={cn(
+                                    "flex-1 flex items-center gap-2 min-w-0 justify-end",
+                                    teamAWon && "opacity-50"
+                                  )}>
+                                    <span className={cn(
+                                      "text-[10px] font-bold truncate text-right",
+                                      teamBWon ? "text-green-600" : "text-slate-700"
+                                    )}>
+                                      {match.team_b?.name || 'TBD'}
+                                    </span>
+                                    <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {match.team_b?.logo_url ? (
+                                        <img src={match.team_b.logo_url} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <Trophy className="w-3 h-3 text-slate-300" />
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Arrow */}
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 flex-shrink-0" />
+                                </div>
+                              );
+                            })}
                         </div>
-                      ));
-                  })()}
-                </div>
-              ) : null}
+                      </div>
+                    ));
+                })()}
+              </div>
+            ) : null}
           </TabsContent>
 
           {/* 5️⃣ TEAMS TAB */}
-          <TabsContent value="teams" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0" >
+          <TabsContent value="teams" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0">
             {isOrganizer && (
               <div className="flex justify-between items-center px-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manage Contenders</span>
@@ -1085,64 +1091,63 @@ const TournamentDetail = () => {
               </div>
             )}
 
-            {
-              teams.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
-                  <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
-                    <UserPlus className="w-8 h-8" />
-                  </div>
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">No teams registered yet</p>
-                  {isOrganizer && (
-                    <p className="text-[9px] font-medium text-slate-400 mt-2">Add teams to generate match schedules automatically</p>
-                  )}
+            {teams.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-dashed border-slate-100">
+                <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-200 mb-4">
+                  <UserPlus className="w-8 h-8" />
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
-                  {teams.map((team) => (
-                    <div
-                      key={team.id}
-                      onClick={() => navigate(`/teams/${team.teams.id}`)}
-                      className="bg-white p-6 rounded-[32px] border-2 border-slate-100 flex items-center justify-between shadow-sm hover:border-orange-500/20 hover:shadow-md transition-all cursor-pointer active:scale-95"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
-                          {team.teams.logo_url ? (
-                            <img src={team.teams.logo_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-lg font-black text-slate-200 uppercase">{team.teams.name.charAt(0)}</span>
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-black italic uppercase tracking-tight text-slate-900">{team.teams.name}</span>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Roster: {team.teams.captain_name} (CPT)</span>
-                        </div>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">No teams registered yet</p>
+                {isOrganizer && (
+                  <p className="text-[9px] font-medium text-slate-400 mt-2">Add teams to generate match schedules automatically</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-20">
+                {teams.map((team) => (
+                  <div
+                    key={team.id}
+                    onClick={() => navigate(`/teams/${team.teams.id}`)}
+                    className="bg-white p-6 rounded-[32px] border-2 border-slate-100 flex items-center justify-between shadow-sm hover:border-orange-500/20 hover:shadow-md transition-all cursor-pointer active:scale-95"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100 overflow-hidden shadow-inner">
+                        {team.teams.logo_url ? (
+                          <img src={team.teams.logo_url} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-lg font-black text-slate-200 uppercase">{team.teams.name.charAt(0)}</span>
+                        )}
                       </div>
-                      {isOrganizer && (
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTeamId(team.teams.id);
-                            setAddPlayerOpen(true);
-                          }} className="text-orange-600 hover:bg-orange-50 rounded-xl">
-                            Add Player
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveTeam(team.id, team.teams.name);
-                          }} className="text-red-600 hover:bg-red-50 rounded-xl p-2">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex flex-col">
+                        <span className="text-sm font-black italic uppercase tracking-tight text-slate-900">{team.teams.name}</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Roster: {team.teams.captain_name} (CPT)</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )
+                    {isOrganizer && (
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedTeamId(team.teams.id);
+                          setAddPlayerOpen(true);
+                        }} className="text-orange-600 hover:bg-orange-50 rounded-xl">
+                          Add Player
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveTeam(team.id, team.teams.name);
+                        }} className="text-red-600 hover:bg-red-50 rounded-xl p-2">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
             }
-          </TabsContent>
+          </TabsContent >
 
           {/* 5️⃣ POINTS TAB (CLEAN TABLE) */}
-          <TabsContent value="points" className="mt-6 focus-visible:outline-none ring-0 border-0" >
+          < TabsContent value="points" className="mt-6 focus-visible:outline-none ring-0 border-0" >
             <div className="bg-white rounded-[32px] border-2 border-slate-100 overflow-hidden shadow-sm">
               <Table>
                 <TableHeader className="bg-slate-50/50">
@@ -1195,10 +1200,10 @@ const TournamentDetail = () => {
                 </TableBody>
               </Table>
             </div>
-          </TabsContent>
+          </TabsContent >
 
           {/* 6️⃣ STATS TAB (MINIMAL MVP) */}
-          <TabsContent value="stats" className="mt-6 space-y-4 focus-visible:outline-none ring-0 border-0" >
+          < TabsContent value="stats" className="mt-6 space-y-4 focus-visible:outline-none ring-0 border-0" >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Top Raider */}
               <div className="bg-white p-6 rounded-[32px] border-2 border-slate-100 relative overflow-hidden group hover:border-orange-500/20 transition-all">
@@ -1263,10 +1268,10 @@ const TournamentDetail = () => {
                 </div>
               </div>
             </div>
-          </TabsContent>
+          </TabsContent >
 
           {/* 7️⃣ INFO TAB (CONSOLIDATED) */}
-          <TabsContent value="info" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0" >
+          < TabsContent value="info" className="mt-6 space-y-6 focus-visible:outline-none ring-0 border-0" >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
               {/* Format & Rules */}
               <div className="bg-white p-8 rounded-[32px] border-2 border-slate-100 space-y-6 shadow-sm">
@@ -1408,9 +1413,9 @@ const TournamentDetail = () => {
                 </div>
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
-      </div>
+          </TabsContent >
+        </Tabs >
+      </div >
 
       {/* FOOTER DIALOGS */}
       {
@@ -1455,7 +1460,7 @@ const TournamentDetail = () => {
       }
 
       <BottomNav />
-    </div>
+    </div >
   );
 };
 

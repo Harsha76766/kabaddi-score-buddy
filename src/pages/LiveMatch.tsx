@@ -65,6 +65,9 @@ const LiveMatch = () => {
       // Check if current user is the match creator
       setIsOrganizer(user?.id === matchData.created_by);
 
+      // Check if current user is the match creator
+      setIsOrganizer(user?.id === matchData.created_by);
+
       const [tA, tB, pA, pB, evts] = await Promise.all([
         supabase.from("teams").select("*").eq("id", matchData.team_a_id).single(),
         supabase.from("teams").select("*").eq("id", matchData.team_b_id).single(),

@@ -15,6 +15,9 @@ interface TeamStatsComparisonProps {
             allOuts: number;
             emptyRaids?: number;
             outs?: number;
+            totalTackles?: number;
+            successfulTackles?: number;
+            superTackles?: number;
         };
         teamB: {
             raids: number;
@@ -25,6 +28,9 @@ interface TeamStatsComparisonProps {
             allOuts: number;
             emptyRaids?: number;
             outs?: number;
+            totalTackles?: number;
+            successfulTackles?: number;
+            superTackles?: number;
         };
         half1: { teamA: number; teamB: number };
         half2: { teamA: number; teamB: number };
