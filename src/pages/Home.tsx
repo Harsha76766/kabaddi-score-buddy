@@ -93,7 +93,6 @@ const Home = () => {
   const fetchUserData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || "User");
 
     const { data: profileData } = await supabase
       .from('profiles')
@@ -103,34 +102,67 @@ const Home = () => {
 
     if (profileData) {
       setProfile(profileData);
+      // Set username from profile name, fallback to email
+      setUserName(profileData.name || user.user_metadata?.full_name || user.email?.split('@')[0] || "User");
       setUserRole(profileData.role || 'player');
 
-      // Fetch Stats if they are a player
-      if (profileData.phone) {
-        // Get player records
-        const { data: playerRecords } = await (supabase
-          .from('players') as any)
-          .select('id, team_id, matches_played, total_raid_points, total_tackle_points')
-          .eq('phone', profileData.phone);
+      // Get MY player records by PHONE NUMBER (same as Profile page)
+      const myPhone = profileData.phone;
+      let myPlayerRecords: any[] = [];
 
-        if (playerRecords && playerRecords.length > 0) {
-          const totalMatches = playerRecords.reduce((acc, curr) => acc + (curr.matches_played || 0), 0);
-          const totalPoints = playerRecords.reduce((acc, curr) => acc + (curr.total_raid_points || 0) + (curr.total_tackle_points || 0), 0);
-          // Calculate actual win rate from matches
-          const { data: matchStats } = await supabase
-            .from('player_match_stats')
-            .select('match_id, matches(status, winner_team_id)')
-            .in('player_id', playerRecords.map(p => p.id));
+      if (myPhone) {
+        // @ts-ignore - casting to any to avoid deep type instantiation error
+        const { data: playersByPhone } = await (supabase.from('players') as any)
+          .select('id, team_id')
+          .eq('phone', myPhone);
+        myPlayerRecords = playersByPhone || [];
+      }
 
+      const myPlayerIds = myPlayerRecords.map((p: any) => p.id);
+      const myTeamIds = [...new Set(myPlayerRecords.map((p: any) => p.team_id).filter(Boolean))];
+
+      // Fetch detailed match stats from player_match_stats (same as Profile page)
+      if (myPlayerIds.length > 0) {
+        const { data: matchStats } = await supabase
+          .from('player_match_stats')
+          .select(`
+            match_id, raid_points, tackle_points, bonus_points,
+            matches(id, team_a_id, team_b_id, team_a_score, team_b_score, status)
+          `)
+          .in('player_id', myPlayerIds);
+
+        if (matchStats && matchStats.length > 0) {
+          // Calculate total points
+          let totalRaidPoints = 0;
+          let totalTacklePoints = 0;
+
+          matchStats.forEach((s: any) => {
+            totalRaidPoints += s.raid_points || 0;
+            totalTacklePoints += s.tackle_points || 0;
+          });
+
+          const totalPoints = totalRaidPoints + totalTacklePoints;
+
+          // Get unique matches
+          const matchesPlayed = matchStats.map((ms: any) => ms.matches).filter(Boolean);
+          const uniqueMatchMap = new Map();
+          matchesPlayed.forEach((m: any) => {
+            if (m?.id) uniqueMatchMap.set(m.id, m);
+          });
+          const uniqueMatches = Array.from(uniqueMatchMap.values());
+          const totalMatches = uniqueMatches.length;
+
+          // Calculate win rate from completed matches
           let wins = 0;
-          if (matchStats) {
-            const completedMatches = matchStats.filter((ms: any) => ms.matches?.status === 'completed');
-            wins = completedMatches.filter((ms: any) => {
-              const playerTeamId = playerRecords.find(p => p.id === ms.player_id)?.team_id;
-              return ms.matches?.winner_team_id === playerTeamId;
-            }).length;
-          }
-          const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
+          const completedMatches = uniqueMatches.filter((m: any) => m.status === 'completed');
+          completedMatches.forEach((match: any) => {
+            const isTeamA = myTeamIds.includes(match.team_a_id);
+            const isTeamB = myTeamIds.includes(match.team_b_id);
+            if (isTeamA && match.team_a_score > match.team_b_score) wins++;
+            else if (isTeamB && match.team_b_score > match.team_a_score) wins++;
+          });
+
+          const winRate = completedMatches.length > 0 ? Math.round((wins / completedMatches.length) * 100) : 0;
 
           setUserStats({
             matches: totalMatches,
@@ -138,43 +170,41 @@ const Home = () => {
             avg: totalMatches > 0 ? (totalPoints / totalMatches).toFixed(1) : 0,
             winRate
           });
+        }
 
-          // Fetch Teams with win/loss stats
-          const teamIds = playerRecords.map(p => p.team_id).filter(Boolean);
-          if (teamIds.length > 0) {
-            const { data: teams } = await supabase
-              .from('teams')
-              .select('*')
-              .in('id', teamIds);
+        // Fetch Teams with win/loss stats
+        if (myTeamIds.length > 0) {
+          const { data: teams } = await supabase
+            .from('teams')
+            .select('*')
+            .in('id', myTeamIds as string[]);
 
-            // Calculate wins/losses for each team
-            if (teams) {
-              const { data: allMatches } = await (supabase as any)
-                .from('matches')
-                .select('team_a_id, team_b_id, team_a_score, team_b_score, status')
-                .eq('status', 'completed')
-                .or(`team_a_id.in.(${teamIds.join(',')}),team_b_id.in.(${teamIds.join(',')})`);
+          if (teams) {
+            const { data: allMatches } = await supabase
+              .from('matches')
+              .select('team_a_id, team_b_id, team_a_score, team_b_score, status')
+              .eq('status', 'completed');
 
-              const teamsWithStats = teams.map((team: any) => {
-                const teamMatches = (allMatches || []).filter((m: any) =>
-                  m.team_a_id === team.id || m.team_b_id === team.id
-                );
-                let wins = 0, losses = 0;
-                teamMatches.forEach((m: any) => {
-                  const isTeamA = m.team_a_id === team.id;
-                  const won = isTeamA ? m.team_a_score > m.team_b_score : m.team_b_score > m.team_a_score;
-                  if (won) wins++;
-                  else losses++;
-                });
-                return { ...team, wins, losses };
+            const teamsWithStats = teams.map((team: any) => {
+              const teamMatches = (allMatches || []).filter((m: any) =>
+                m.team_a_id === team.id || m.team_b_id === team.id
+              );
+              let wins = 0, losses = 0;
+              teamMatches.forEach((m: any) => {
+                const isTeamA = m.team_a_id === team.id;
+                const won = isTeamA ? m.team_a_score > m.team_b_score : m.team_b_score > m.team_a_score;
+                if (won) wins++;
+                else losses++;
               });
-              setUserTeams(teamsWithStats);
-            }
+              return { ...team, wins, losses };
+            });
+            setUserTeams(teamsWithStats);
           }
         }
       }
     }
   };
+
 
   const fetchMatches = async () => {
     const { data: matches } = await (supabase
@@ -384,21 +414,21 @@ const Home = () => {
               {/* Stats Grid */}
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { label: 'Matches', val: userStats?.matches || 0, color: 'text-orange-500' },
-                  { label: 'Points', val: userStats?.points || 0, color: 'text-blue-400' },
-                  { label: 'Avg/M', val: userStats?.avg || 0, color: 'text-green-400' },
-                  { label: 'Win %', val: userStats?.winRate || '0', color: 'text-purple-400' }
+                  { label: 'Matches', val: userStats?.matches || 0, color: 'text-orange-400' },
+                  { label: 'Points', val: userStats?.points || 0, color: 'text-cyan-400' },
+                  { label: 'Avg/M', val: userStats?.avg || 0, color: 'text-emerald-400' },
+                  { label: 'Win %', val: userStats?.winRate || '0', color: 'text-violet-400' }
                 ].map((s, idx) => (
-                  <div key={idx} className="bg-white/5 backdrop-blur-md rounded-2xl p-3 flex flex-col items-center border border-white/5 group-hover:bg-white/10 transition-colors">
-                    <span className={cn("text-lg font-black tracking-tight", s.color)}>{s.val}</span>
-                    <span className="text-[7px] font-black uppercase tracking-widest text-white/40 mt-1">{s.label}</span>
+                  <div key={idx} className="bg-white/10 backdrop-blur-md rounded-2xl p-3 flex flex-col items-center border border-white/10 group-hover:bg-white/15 transition-colors">
+                    <span className={cn("text-xl font-black tracking-tight drop-shadow-lg", s.color)}>{s.val}</span>
+                    <span className="text-[7px] font-black uppercase tracking-widest text-white/60 mt-1">{s.label}</span>
                   </div>
                 ))}
               </div>
 
               <button
                 onClick={() => navigate('/profile')}
-                className="w-full h-12 bg-white rounded-2xl text-slate-950 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+                className="w-full h-12 bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-orange-500/20"
               >
                 View Full Analytics <ChevronRight className="w-3 h-3" />
               </button>

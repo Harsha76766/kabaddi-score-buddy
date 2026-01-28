@@ -59,7 +59,7 @@ const Leaderboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero p-4">
+    <div className="min-h-screen bg-[#050508] text-white p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
           <Button
@@ -89,7 +89,7 @@ const Leaderboard = () => {
             </CardContent>
           </Card>
         ) : (
-          <Card className="bg-white/95 backdrop-blur-sm">
+          <Card className="bg-white/[0.03] border border-white/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Trophy className="w-6 h-6 text-primary" />
@@ -137,3 +137,4 @@ const Leaderboard = () => {
 };
 
 export default Leaderboard;
+

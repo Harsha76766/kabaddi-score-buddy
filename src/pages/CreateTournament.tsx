@@ -254,7 +254,7 @@ const CreateTournament = () => {
   const [activeTab, setActiveTab] = useState("details");
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900">
+    <div className="min-h-screen bg-[#050508] pb-24 font-sans text-white">
       {/* TOP HEADER */}
       <div className="bg-gradient-hero p-8 pb-12 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
@@ -282,7 +282,7 @@ const CreateTournament = () => {
 
       <div className="max-w-lg mx-auto px-6 -mt-8 relative z-20">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex w-full bg-white p-1.5 rounded-[24px] h-14 border-2 border-slate-100 shadow-sm">
+          <TabsList className="flex w-full bg-white p-1.5 rounded-[24px] h-14 border-2 border-white/10 shadow-sm">
             <TabsTrigger
               value="details"
               className="flex-1 rounded-2xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-slate-900 data-[state=active]:text-white transition-all ring-0 border-0"
@@ -299,11 +299,11 @@ const CreateTournament = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <TabsContent value="details" className="space-y-6 focus-visible:outline-none focus-visible:ring-0">
-              <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
-                <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
+              <Card className="border-2 border-white/10 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                <CardHeader className="bg-white/5/50 border-b border-white/10 p-6">
                   <div className="flex items-center gap-2">
                     <Info className="h-4 w-4 text-orange-600" />
-                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-slate-400">
+                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-white/40">
                       Standard Information
                     </CardTitle>
                   </div>
@@ -311,10 +311,10 @@ const CreateTournament = () => {
                 <CardContent className="p-6 space-y-6">
                   {/* Media Upload */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-3 p-4 border-2 border-slate-50 rounded-[24px] bg-slate-50/30">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tournament Logo</Label>
+                    <div className="space-y-3 p-4 border-2 border-slate-50 rounded-[24px] bg-white/5/30">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Tournament Logo</Label>
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-16 h-16 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
+                        <div className="w-16 h-16 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 shadow-inner group">
                           {logoFile ? (
                             <img src={URL.createObjectURL(logoFile)} alt="Logo Preview" className="w-full h-full object-cover" />
                           ) : (
@@ -334,10 +334,10 @@ const CreateTournament = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-3 p-4 border-2 border-slate-50 rounded-[24px] bg-slate-50/30">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cover Photo</Label>
+                    <div className="space-y-3 p-4 border-2 border-slate-50 rounded-[24px] bg-white/5/30">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Cover Photo</Label>
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-16 h-16 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        <div className="w-16 h-16 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                           {coverFile ? (
                             <img src={URL.createObjectURL(coverFile)} alt="Cover Preview" className="w-full h-full object-cover" />
                           ) : (
@@ -361,75 +361,75 @@ const CreateTournament = () => {
                   {/* Basic Details */}
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tournament Name</Label>
+                      <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Tournament Name</Label>
                       <Input
                         id="name"
                         placeholder="Maharashtra Grand Kabaddi"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold focus:ring-orange-500/20 focus:border-orange-500/20"
+                        className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold focus:ring-orange-500/20 focus:border-orange-500/20"
                         required
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">City</Label>
+                        <Label htmlFor="city" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">City</Label>
                         <Input
                           id="city"
                           placeholder="Mumbai"
                           value={formData.city}
                           onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold"
                           required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="ground" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Ground</Label>
+                        <Label htmlFor="ground" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Ground</Label>
                         <Input
                           id="ground"
                           placeholder="Shivaji Park"
                           value={formData.ground}
                           onChange={(e) => setFormData({ ...formData, ground: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold"
                           required
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="organizer_phone" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Organizer Phone</Label>
+                      <Label htmlFor="organizer_phone" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Organizer Phone</Label>
                       <Input
                         id="organizer_phone"
                         type="tel"
                         placeholder="+91 9876543210"
                         value={formData.organizer_phone}
                         onChange={(e) => setFormData({ ...formData, organizer_phone: e.target.value })}
-                        className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold"
+                        className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold"
                         required
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="start_date" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Start Date</Label>
+                        <Label htmlFor="start_date" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Start Date</Label>
                         <Input
                           id="start_date"
                           type="date"
                           value={formData.start_date}
                           onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold"
                           required
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="end_date" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">End Date</Label>
+                        <Label htmlFor="end_date" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">End Date</Label>
                         <Input
                           id="end_date"
                           type="date"
                           value={formData.end_date}
                           onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 px-4 text-sm font-bold"
                           required
                         />
                       </div>
@@ -437,15 +437,15 @@ const CreateTournament = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="category" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Category</Label>
+                        <Label htmlFor="category" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Category</Label>
                         <Select
                           value={formData.category}
                           onValueChange={(value) => setFormData({ ...formData, category: value })}
                         >
-                          <SelectTrigger className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold uppercase tracking-tight">
+                          <SelectTrigger className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 text-sm font-bold uppercase tracking-tight">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="rounded-2xl border-2 border-slate-100">
+                          <SelectContent className="rounded-2xl border-2 border-white/10">
                             {categories.map((cat) => (
                               <SelectItem key={cat} value={cat} className="font-bold uppercase text-[10px] tracking-widest">{cat}</SelectItem>
                             ))}
@@ -453,15 +453,15 @@ const CreateTournament = () => {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="tournament_type" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Type</Label>
+                        <Label htmlFor="tournament_type" className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Type</Label>
                         <Select
                           value={formData.tournament_type}
                           onValueChange={(value) => setFormData({ ...formData, tournament_type: value })}
                         >
-                          <SelectTrigger className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold uppercase tracking-tight">
+                          <SelectTrigger className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 text-sm font-bold uppercase tracking-tight">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="rounded-2xl border-2 border-slate-100">
+                          <SelectContent className="rounded-2xl border-2 border-white/10">
                             {tournamentTypes.map((type) => (
                               <SelectItem key={type} value={type} className="font-bold uppercase text-[10px] tracking-widest">{type}</SelectItem>
                             ))}
@@ -489,7 +489,7 @@ const CreateTournament = () => {
             <TabsContent value="rules" className="space-y-6 focus-visible:outline-none focus-visible:ring-0">
               <div className="space-y-6 pb-24">
                 {/* TEAM CONFIGURATION */}
-                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                <Card className="border-2 border-white/10 shadow-sm overflow-hidden bg-white rounded-[32px]">
                   <CardHeader className="bg-orange-50/50 border-b border-orange-100 p-6">
                     <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-orange-600 flex items-center gap-2">
                       <Users2 className="h-4 w-4" />
@@ -499,21 +499,21 @@ const CreateTournament = () => {
                   <CardContent className="p-6 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Max Teams</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Max Teams</Label>
                         <Input
                           type="number"
                           value={formData.max_teams}
                           onChange={(e) => setFormData({ ...formData, max_teams: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 text-sm font-bold"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Min Teams</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Min Teams</Label>
                         <Input
                           type="number"
                           value={formData.min_teams}
                           onChange={(e) => setFormData({ ...formData, min_teams: e.target.value })}
-                          className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold"
+                          className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 text-sm font-bold"
                         />
                       </div>
                     </div>
@@ -548,10 +548,10 @@ const CreateTournament = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border-2 border-slate-100">
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5/50 border-2 border-white/10">
                       <div className="space-y-0.5">
-                        <Label className="text-xs font-black uppercase tracking-tight text-slate-900">Foreign Players Allowed</Label>
-                        <p className="text-[10px] font-medium text-slate-400 leading-none">For elite/international events</p>
+                        <Label className="text-xs font-black uppercase tracking-tight text-white">Foreign Players Allowed</Label>
+                        <p className="text-[10px] font-medium text-white/40 leading-none">For elite/international events</p>
                       </div>
                       <div className="flex items-center gap-3">
                         {formData.foreign_players_allowed && (
@@ -573,7 +573,7 @@ const CreateTournament = () => {
                 </Card>
 
                 {/* MATCH RULES */}
-                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                <Card className="border-2 border-white/10 shadow-sm overflow-hidden bg-white rounded-[32px]">
                   <CardHeader className="bg-red-50/50 border-b border-red-100 p-6">
                     <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-red-600 flex items-center gap-2">
                       <Settings className="h-4 w-4" />
@@ -583,10 +583,10 @@ const CreateTournament = () => {
                   <CardContent className="p-6 space-y-6">
                     {/* Duration Settings */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Duration Settings (Minutes)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Duration Settings (Minutes)</Label>
                       <div className="grid grid-cols-4 gap-3">
-                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Match</Label>
+                        <div className="space-y-2 text-center p-3 bg-white/5/30 rounded-2xl border-2 border-white/10">
+                          <Label className="text-[8px] font-black uppercase text-white/40 tracking-[0.1em] mb-1 block">Match</Label>
                           <Input
                             type="number"
                             value={formData.match_duration}
@@ -594,8 +594,8 @@ const CreateTournament = () => {
                             className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
                           />
                         </div>
-                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Halves</Label>
+                        <div className="space-y-2 text-center p-3 bg-white/5/30 rounded-2xl border-2 border-white/10">
+                          <Label className="text-[8px] font-black uppercase text-white/40 tracking-[0.1em] mb-1 block">Halves</Label>
                           <Input
                             type="number"
                             value={formData.halves}
@@ -603,8 +603,8 @@ const CreateTournament = () => {
                             className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
                           />
                         </div>
-                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Half</Label>
+                        <div className="space-y-2 text-center p-3 bg-white/5/30 rounded-2xl border-2 border-white/10">
+                          <Label className="text-[8px] font-black uppercase text-white/40 tracking-[0.1em] mb-1 block">Half</Label>
                           <Input
                             type="number"
                             value={formData.half_duration}
@@ -612,8 +612,8 @@ const CreateTournament = () => {
                             className="bg-transparent border-0 text-center text-lg font-black italic h-auto p-0"
                           />
                         </div>
-                        <div className="space-y-2 text-center p-3 bg-slate-50/30 rounded-2xl border-2 border-slate-100">
-                          <Label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.1em] mb-1 block">Break</Label>
+                        <div className="space-y-2 text-center p-3 bg-white/5/30 rounded-2xl border-2 border-white/10">
+                          <Label className="text-[8px] font-black uppercase text-white/40 tracking-[0.1em] mb-1 block">Break</Label>
                           <Input
                             type="number"
                             value={formData.break_duration}
@@ -626,7 +626,7 @@ const CreateTournament = () => {
 
                     {/* Timer Settings */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Timer Settings (Seconds)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Timer Settings (Seconds)</Label>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-2 text-center p-3 bg-orange-50/30 rounded-2xl border-2 border-orange-100/50">
                           <Label className="text-[8px] font-black uppercase text-orange-600 tracking-[0.1em] mb-1 block">Raid Timer</Label>
@@ -662,7 +662,7 @@ const CreateTournament = () => {
                     <div className="flex items-center justify-between p-4 rounded-2xl bg-red-50/30 border-2 border-red-100/50">
                       <div className="space-y-0.5">
                         <Label className="text-xs font-black uppercase tracking-tight text-red-600">All-Out Points</Label>
-                        <p className="text-[10px] font-medium text-slate-400 leading-none">Bonus points for all-out</p>
+                        <p className="text-[10px] font-medium text-white/40 leading-none">Bonus points for all-out</p>
                       </div>
                       <Input
                         type="number"
@@ -674,7 +674,7 @@ const CreateTournament = () => {
 
                     {/* Points System */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Points System</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Points System</Label>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="bg-orange-50/30 p-3 rounded-2xl border-2 border-orange-100/50">
                           <Label className="text-[9px] font-black uppercase text-orange-600 tracking-widest mb-2 block text-center">Win</Label>
@@ -694,8 +694,8 @@ const CreateTournament = () => {
                             className="bg-transparent border-0 text-center text-lg font-black italic p-0"
                           />
                         </div>
-                        <div className="bg-slate-50/30 p-3 rounded-2xl border-2 border-slate-100">
-                          <Label className="text-[9px] font-black uppercase text-slate-400 tracking-widest mb-2 block text-center">Loss</Label>
+                        <div className="bg-white/5/30 p-3 rounded-2xl border-2 border-white/10">
+                          <Label className="text-[9px] font-black uppercase text-white/40 tracking-widest mb-2 block text-center">Loss</Label>
                           <Input
                             type="number"
                             value={formData.points_loss}
@@ -710,9 +710,9 @@ const CreateTournament = () => {
 
 
                 {/* Advanced Rules */}
-                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
-                  <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
-                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Card className="border-2 border-white/10 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                  <CardHeader className="bg-white/5/50 border-b border-white/10 p-6">
+                    <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-white/40 flex items-center gap-2">
                       <Swords className="h-4 w-4 text-orange-600" />
                       Advanced Rules (Toggles)
                     </CardTitle>
@@ -778,10 +778,10 @@ const CreateTournament = () => {
                           onCheckedChange={(val) => setFormData({ ...formData, review_system: val })}
                         />
                       </div>
-                      <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 border-2 border-slate-200">
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5/50 border-2 border-slate-200">
                         <div className="space-y-0.5">
                           <Label className="text-[10px] font-black uppercase tracking-tight text-slate-600">Video Referee</Label>
-                          <p className="text-[9px] font-medium text-slate-400 leading-none">VAR for decisions</p>
+                          <p className="text-[9px] font-medium text-white/40 leading-none">VAR for decisions</p>
                         </div>
                         <Switch
                           checked={formData.video_referee}
@@ -792,15 +792,15 @@ const CreateTournament = () => {
 
                     {/* Tie-Breaker */}
                     <div className="space-y-2 pt-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Standing Tie-Breaker</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Standing Tie-Breaker</Label>
                       <Select
                         value={formData.tie_breaker}
                         onValueChange={(value) => setFormData({ ...formData, tie_breaker: value })}
                       >
-                        <SelectTrigger className="h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 text-sm font-bold uppercase tracking-tight">
+                        <SelectTrigger className="h-14 rounded-2xl border-2 border-white/10 bg-white/5 text-sm font-bold uppercase tracking-tight">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="rounded-2xl border-2 border-slate-100">
+                        <SelectContent className="rounded-2xl border-2 border-white/10">
                           <SelectItem value="Score Difference" className="font-bold uppercase text-[10px] tracking-widest">Score Difference</SelectItem>
                           <SelectItem value="Head-to-Head" className="font-bold uppercase text-[10px] tracking-widest">Head-to-Head</SelectItem>
                         </SelectContent>
@@ -810,7 +810,7 @@ const CreateTournament = () => {
                 </Card>
 
                 {/* OFFICIALS & ROLES */}
-                <Card className="border-2 border-slate-100 shadow-sm overflow-hidden bg-white rounded-[32px]">
+                <Card className="border-2 border-white/10 shadow-sm overflow-hidden bg-white rounded-[32px]">
                   <CardHeader className="bg-indigo-50/50 border-b border-indigo-100 p-6">
                     <CardTitle className="text-[10px] font-black italic uppercase tracking-widest text-indigo-600 flex items-center gap-2">
                       <Users2 className="h-4 w-4" />
@@ -818,13 +818,13 @@ const CreateTournament = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
-                    <p className="text-[10px] font-medium text-slate-400 -mt-2 mb-4">
+                    <p className="text-[10px] font-medium text-white/40 -mt-2 mb-4">
                       Assign officials to manage this tournament. Enter email addresses or names.
                     </p>
 
                     {/* Tournament Admin */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tournament Admin</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Tournament Admin</Label>
                       <div className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50/30 border-2 border-indigo-100/50">
                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
                           <Settings className="w-4 h-4 text-indigo-600" />
@@ -840,7 +840,7 @@ const CreateTournament = () => {
 
                     {/* Referees */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Referees (comma-separated)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Referees (comma-separated)</Label>
                       <div className="flex items-center gap-2 p-3 rounded-2xl bg-green-50/30 border-2 border-green-100/50">
                         <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
                           <Swords className="w-4 h-4 text-green-600" />
@@ -856,7 +856,7 @@ const CreateTournament = () => {
 
                     {/* Scorers */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Scorers (comma-separated)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Scorers (comma-separated)</Label>
                       <div className="flex items-center gap-2 p-3 rounded-2xl bg-orange-50/30 border-2 border-orange-100/50">
                         <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
                           <Trophy className="w-4 h-4 text-orange-600" />
@@ -872,7 +872,7 @@ const CreateTournament = () => {
 
                     {/* Timekeepers */}
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Timekeepers (comma-separated)</Label>
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-1">Timekeepers (comma-separated)</Label>
                       <div className="flex items-center gap-2 p-3 rounded-2xl bg-purple-50/30 border-2 border-purple-100/50">
                         <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
                           <CalendarIcon className="w-4 h-4 text-purple-600" />
@@ -891,7 +891,7 @@ const CreateTournament = () => {
               </div>
 
               {/* STICKY BOTTOM BAR FOR MOBILE */}
-              <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-md border-t border-slate-100 z-50 flex gap-4">
+              <div className="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-md border-t border-white/10 z-50 flex gap-4">
                 <Button
                   type="button"
                   variant="outline"
@@ -917,3 +917,4 @@ const CreateTournament = () => {
 };
 
 export default CreateTournament;
+

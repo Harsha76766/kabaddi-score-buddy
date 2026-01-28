@@ -246,7 +246,7 @@ const Profile = () => {
   const handleLogout = async () => { await supabase.auth.signOut(); navigate('/auth'); };
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div></div>;
+    return <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center"><div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div></div>;
   }
 
   return (
@@ -692,3 +692,4 @@ const Profile = () => {
 };
 
 export default Profile;
+

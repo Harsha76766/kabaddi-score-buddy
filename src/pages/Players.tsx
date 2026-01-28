@@ -86,7 +86,7 @@ const Players = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero p-4">
+    <div className="min-h-screen bg-[#050508] text-white p-4">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -196,3 +196,4 @@ const Players = () => {
 };
 
 export default Players;
+

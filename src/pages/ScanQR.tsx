@@ -255,7 +255,7 @@ const ScanQR = () => {
 
     if (hasPermission === false) {
         return (
-            <div className="min-h-screen bg-slate-50 p-6">
+            <div className="min-h-screen bg-[#050508] text-white p-6">
                 <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
                     <ArrowLeft className="w-5 h-5 mr-2" /> Back
                 </Button>
@@ -382,3 +382,4 @@ const ScanQR = () => {
 };
 
 export default ScanQR;
+

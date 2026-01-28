@@ -11,7 +11,8 @@ import {
     MapPin,
     Calendar,
     ChevronRight,
-    Circle
+    Circle,
+    Plus
 } from "lucide-react";
 import { format, isAfter, isBefore, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -60,12 +61,16 @@ const PublicTournaments = () => {
                 const isCurrentlyRunning = (isBefore(startDate, now) || isSameDay(startDate, now)) &&
                     (isAfter(endDate, now) || isSameDay(endDate, now));
 
-                if (hasLiveMatches || (t.status === 'Active' && isCurrentlyRunning)) {
-                    acc.live.push(t);
-                } else if (isAfter(startDate, now) && t.status !== 'Completed') {
-                    acc.upcoming.push(t);
-                } else if (isBefore(endDate, now) || t.status === 'Completed') {
+                // Prioritize DB status, but verify with dates for accuracy
+                if (t.status === 'Draft') {
+                    // Draft tournaments shouldn't appear in public view
+                    return acc;
+                } else if (t.status === 'Completed' || isBefore(endDate, now)) {
                     acc.completed.push(t);
+                } else if (t.status === 'Upcoming' || isAfter(startDate, now)) {
+                    acc.upcoming.push(t);
+                } else if (hasLiveMatches || t.status === 'Active' || isCurrentlyRunning) {
+                    acc.live.push(t);
                 }
                 return acc;
             }, { live: [], upcoming: [], completed: [] });
@@ -153,13 +158,21 @@ const PublicTournaments = () => {
                             <span className="text-lg font-black uppercase tracking-tight">Tournaments</span>
                         </div>
                     </div>
-                    <Button
-                        onClick={() => navigate('/auth')}
-                        variant="ghost"
-                        className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white"
-                    >
-                        Login
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            onClick={() => navigate('/create-tournament')}
+                            className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 hover:opacity-90 transition-opacity p-0"
+                        >
+                            <Plus className="w-5 h-5" />
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/auth')}
+                            variant="ghost"
+                            className="text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white"
+                        >
+                            Login
+                        </Button>
+                    </div>
                 </div>
             </div>
 

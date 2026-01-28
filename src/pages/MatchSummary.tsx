@@ -57,7 +57,7 @@ const MatchSummary = () => {
       // Capture the content as a PNG
       const dataUrl = await htmlToImage.toPng(summaryRef.current, {
         cacheBust: true,
-        backgroundColor: '#f8fafc', // match bg-slate-50
+        backgroundColor: '#050508', // match bg-white/5
         style: {
           borderRadius: '0px'
         }
@@ -369,11 +369,11 @@ const MatchSummary = () => {
             </div>
           )}
 
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Match Highlights</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Match Highlights</h3>
 
           <div className="grid grid-cols-1 gap-4">
             {bestRaider && (
-              <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm overflow-hidden relative group">
+              <div className="bg-white border border-white/10 rounded-[32px] p-6 shadow-sm overflow-hidden relative group">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:rotate-12 transition-transform">
                   <Activity className="w-40 h-40" />
                 </div>
@@ -385,18 +385,18 @@ const MatchSummary = () => {
                     <div>
                       <Badge className="bg-orange-50 text-orange-600 border-0 mb-1 font-black uppercase text-[8px] tracking-widest h-5">🏃 Best Raider</Badge>
                       <h4 className="text-lg font-black uppercase tracking-tight">{bestRaider.name}</h4>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{bestRaider.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{bestRaider.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-3xl font-black text-orange-600 tracking-tighter">{bestRaider.raidPts}</div>
-                    <div className="text-[8px] font-black uppercase tracking-widest text-slate-400">RAID Pts</div>
+                    <div className="text-[8px] font-black uppercase tracking-widest text-white/40">RAID Pts</div>
                   </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-4">
                   <div className="flex-1 space-y-1">
                     <div className="flex justify-between text-[9px] font-black uppercase tracking-widest">
-                      <span className="text-slate-400">Success Rate</span>
+                      <span className="text-white/40">Success Rate</span>
                       <span className="text-slate-900">{Math.round((bestRaider.successfulRaids / (bestRaider.raids || 1)) * 100)}%</span>
                     </div>
                     <Progress value={(bestRaider.successfulRaids / (bestRaider.raids || 1)) * 100} className="h-1.5 bg-slate-100" indicatorClassName="bg-orange-500" />
@@ -404,11 +404,11 @@ const MatchSummary = () => {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-center">
                       <div className="text-xs font-black text-slate-900">{bestRaider.touch}</div>
-                      <div className="text-[7px] font-black uppercase tracking-widest text-slate-400">Touch</div>
+                      <div className="text-[7px] font-black uppercase tracking-widest text-white/40">Touch</div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs font-black text-slate-900">{bestRaider.bonus}</div>
-                      <div className="text-[7px] font-black uppercase tracking-widest text-slate-400">Bonus</div>
+                      <div className="text-[7px] font-black uppercase tracking-widest text-white/40">Bonus</div>
                     </div>
                   </div>
                 </div>
@@ -416,7 +416,7 @@ const MatchSummary = () => {
             )}
 
             {bestDefender && (
-              <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm overflow-hidden relative group">
+              <div className="bg-white border border-white/10 rounded-[32px] p-6 shadow-sm overflow-hidden relative group">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:-rotate-12 transition-transform">
                   <Shield className="w-40 h-40 text-blue-900" />
                 </div>
@@ -428,18 +428,18 @@ const MatchSummary = () => {
                     <div>
                       <Badge className="bg-blue-50 text-blue-600 border-0 mb-1 font-black uppercase text-[8px] tracking-widest h-5">🛡️ Best Defender</Badge>
                       <h4 className="text-lg font-black uppercase tracking-tight">{bestDefender.name}</h4>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{bestDefender.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{bestDefender.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-3xl font-black text-blue-600 tracking-tighter">{bestDefender.tacklePts}</div>
-                    <div className="text-[8px] font-black uppercase tracking-widest text-slate-400">TACKLE Pts</div>
+                    <div className="text-[8px] font-black uppercase tracking-widest text-white/40">TACKLE Pts</div>
                   </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between gap-4">
                   <div className="flex-1 space-y-1">
                     <div className="flex justify-between text-[9px] font-black uppercase tracking-widest">
-                      <span className="text-slate-400">Tackle Accuracy</span>
+                      <span className="text-white/40">Tackle Accuracy</span>
                       <span className="text-slate-900">{Math.round((bestDefender.successfulTackles / (bestDefender.tackleAttempts || 1)) * 100)}%</span>
                     </div>
                     <Progress value={(bestDefender.successfulTackles / (bestDefender.tackleAttempts || 1)) * 100} className="h-1.5 bg-slate-100" indicatorClassName="bg-blue-600" />
@@ -447,11 +447,11 @@ const MatchSummary = () => {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-center">
                       <div className="text-xs font-black text-slate-900">{bestDefender.successfulTackles}</div>
-                      <div className="text-[7px] font-black uppercase tracking-widest text-slate-400">Success</div>
+                      <div className="text-[7px] font-black uppercase tracking-widest text-white/40">Success</div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs font-black text-slate-900">{bestDefender.tackleAttempts}</div>
-                      <div className="text-[7px] font-black uppercase tracking-widest text-slate-400">Attempts</div>
+                      <div className="text-[7px] font-black uppercase tracking-widest text-white/40">Attempts</div>
                     </div>
                   </div>
                 </div>
@@ -464,7 +464,7 @@ const MatchSummary = () => {
         <div className="px-4">
           <Tabs defaultValue="scorecard" className="w-full">
             <div className="overflow-x-auto no-scrollbar mb-6 px-2">
-              <TabsList className="bg-white border border-slate-100 p-1 h-12 rounded-2xl shadow-sm flex min-w-max">
+              <TabsList className="bg-white border border-white/10 p-1 h-12 rounded-2xl shadow-sm flex min-w-max">
                 <TabsTrigger value="scorecard" className="px-6 text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-orange-50 data-[state=active]:text-orange-600">Scorecard</TabsTrigger>
                 <TabsTrigger value="raiders" className="px-6 text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-orange-50 data-[state=active]:text-orange-600">Raiders</TabsTrigger>
                 <TabsTrigger value="defenders" className="px-6 text-[10px] font-black uppercase tracking-widest rounded-xl data-[state=active]:bg-orange-50 data-[state=active]:text-orange-600">Defenders</TabsTrigger>
@@ -474,9 +474,9 @@ const MatchSummary = () => {
             </div>
 
             <TabsContent value="scorecard" className="space-y-4 px-2">
-              <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+              <div className="bg-white border border-white/10 rounded-3xl p-6 shadow-sm space-y-6">
                 <div className="space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/40 flex items-center gap-2">
                     <Activity className="w-3 h-3" /> Match Scorecard
                   </h4>
 
@@ -484,7 +484,7 @@ const MatchSummary = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black uppercase tracking-tight text-slate-900">1st Half</span>
-                      <Badge variant="outline" className="border-slate-100 text-[9px] font-bold text-slate-400">COMPLETED</Badge>
+                      <Badge variant="outline" className="border-white/10 text-[9px] font-bold text-white/40">COMPLETED</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-red-50/50 p-4 rounded-2xl border border-red-50">
@@ -513,7 +513,7 @@ const MatchSummary = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-black uppercase tracking-tight text-slate-900">2nd Half</span>
-                        <Badge variant="outline" className="border-slate-100 text-[9px] font-bold text-slate-400">COMPLETED</Badge>
+                        <Badge variant="outline" className="border-white/10 text-[9px] font-bold text-white/40">COMPLETED</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-red-50/50 p-4 rounded-2xl border border-red-50">
@@ -542,7 +542,7 @@ const MatchSummary = () => {
                   <div className="space-y-4 pt-4 border-t border-slate-50">
                     <div className="grid grid-cols-2 gap-8">
                       <div className="space-y-3">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{teamA?.name}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{teamA?.name}</span>
                         <div className="space-y-2">
                           {[
                             { label: "Touch", pts: stats.teamA.touchPoints },
@@ -558,7 +558,7 @@ const MatchSummary = () => {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{teamB?.name}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-white/40">{teamB?.name}</span>
                         <div className="space-y-2">
                           {[
                             { label: "Touch", pts: stats.teamB.touchPoints },
@@ -590,9 +590,9 @@ const MatchSummary = () => {
             </TabsContent>
 
             <TabsContent value="raiders" className="space-y-4 px-2">
-              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Raider Performance</h4>
+              <div className="bg-white border border-white/10 rounded-3xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/40">Raider Performance</h4>
                 </div>
                 <Table>
                   <TableHeader>
@@ -617,14 +617,14 @@ const MatchSummary = () => {
                       .sort((a, b) => b.pts - a.pts)
                       .filter(p => p.total > 0)
                       .map((p, idx) => (
-                        <TableRow key={idx} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                        <TableRow key={idx} className="border-slate-50 transition-colors hover:bg-white/5/50">
                           <TableCell className="px-4 py-3 flex items-center gap-2">
                             <div className={`w-1 h-6 rounded-full ${p.team_id === teamA?.id ? 'bg-red-400' : 'bg-blue-400'}`} />
                             <span className="text-xs font-black uppercase tracking-tighter truncate max-w-[80px]">{p.name}</span>
                           </TableCell>
                           <TableCell className="px-4 py-3 text-right text-xs font-black text-orange-600">{p.pts}</TableCell>
-                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-slate-400">{p.touch}/{p.bonus}</TableCell>
-                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-slate-400">{p.successful}/{p.total}</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-white/40">{p.touch}/{p.bonus}</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-white/40">{p.successful}/{p.total}</TableCell>
                           <TableCell className="px-4 py-3 text-right text-xs font-black">{p.sr}%</TableCell>
                         </TableRow>
                       ))
@@ -635,9 +635,9 @@ const MatchSummary = () => {
             </TabsContent>
 
             <TabsContent value="defenders" className="space-y-4 px-2">
-              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Defender Performance</h4>
+              <div className="bg-white border border-white/10 rounded-3xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-white/5 border-b border-white/10">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-white/40">Defender Performance</h4>
                 </div>
                 <Table>
                   <TableHeader>
@@ -661,14 +661,14 @@ const MatchSummary = () => {
                       .sort((a, b) => b.pts - a.pts)
                       .filter(p => p.total > 0)
                       .map((p, idx) => (
-                        <TableRow key={idx} className="border-slate-50 transition-colors hover:bg-slate-50/50">
+                        <TableRow key={idx} className="border-slate-50 transition-colors hover:bg-white/5/50">
                           <TableCell className="px-4 py-3 flex items-center gap-2">
                             <div className={`w-1 h-6 rounded-full ${p.team_id === teamA?.id ? 'bg-red-400' : 'bg-blue-400'}`} />
                             <span className="text-xs font-black uppercase tracking-tighter truncate max-w-[80px]">{p.name}</span>
                           </TableCell>
                           <TableCell className="px-4 py-3 text-right text-xs font-black text-blue-600">{p.pts}</TableCell>
-                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-slate-400">{p.successful}</TableCell>
-                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-slate-400">{p.total}</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-white/40">{p.successful}</TableCell>
+                          <TableCell className="px-4 py-3 text-right text-[10px] font-bold text-white/40">{p.total}</TableCell>
                           <TableCell className="px-4 py-3 text-right text-xs font-black">{p.tr}%</TableCell>
                         </TableRow>
                       ))
@@ -679,14 +679,14 @@ const MatchSummary = () => {
             </TabsContent>
 
             <TabsContent value="timeline" className="space-y-4 px-2">
-              <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden divide-y divide-slate-50">
+              <div className="bg-white border border-white/10 rounded-3xl shadow-sm overflow-hidden divide-y divide-slate-50">
                 {events.slice().reverse().map((event, idx) => {
                   const player = [...playersA, ...playersB].find(p => p.id === event.player_id);
                   const isRaid = event.event_type === 'raid';
                   const isSuccess = event.points_awarded > 0 || (event.event_data?.bonusPoints > 0);
 
                   return (
-                    <div key={idx} className="p-5 flex gap-4 hover:bg-slate-50/50 transition-colors">
+                    <div key={idx} className="p-5 flex gap-4 hover:bg-white/5/50 transition-colors">
                       <div className="flex flex-col items-center shrink-0 w-10">
                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isSuccess ? 'bg-green-500 shadow-green-100' : 'bg-red-500 shadow-red-100'} shadow-lg`}>
                           {isRaid ? <Activity className="w-5 h-5 text-white" /> : <Shield className="w-5 h-5 text-white" />}
@@ -694,7 +694,7 @@ const MatchSummary = () => {
                         <span className="text-[8px] font-mono font-bold text-slate-300 mt-1.5">{idx + 1}</span>
                       </div>
                       <div className="flex-1 space-y-1">
-                        <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-slate-400">
+                        <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-white/40">
                           <span className={event.team_id === teamA?.id ? 'text-red-400' : 'text-blue-400'}>{event.team_id === teamA?.id ? teamA?.name : teamB?.name}</span>
                           <span className="bg-slate-100 px-2 py-0.5 rounded-full">{event.score_at_time_a}-{event.score_at_time_b}</span>
                         </div>
@@ -763,3 +763,4 @@ const MatchSummary = () => {
 };
 
 export default MatchSummary;
+

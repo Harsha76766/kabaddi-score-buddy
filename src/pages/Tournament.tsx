@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, MapPin, Calendar, Search, Trophy, Circle, ChevronRight, Swords } from "lucide-react";
+import { Plus, MapPin, Calendar, Search, Trophy, Circle, ChevronRight, Swords, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, isAfter, isBefore, isSameDay } from "date-fns";
 import BottomNav from "@/components/BottomNav";
@@ -93,17 +93,23 @@ const Tournament = () => {
           acc.my.push(t);
         }
 
+        // Skip Draft tournaments from public categories
+        if (t.status === 'Draft') {
+          return acc;
+        }
+
         // Live: Active status OR matches marked live right now
         const hasLiveMatches = t.matches?.some((m: any) => m.status === 'live');
         const isCurrentlyRunning = (isBefore(startDate, now) || isSameDay(startDate, now)) &&
           (isAfter(endDate, now) || isSameDay(endDate, now));
 
-        if (hasLiveMatches || (t.status === 'Active' && isCurrentlyRunning)) {
-          acc.live.push(t);
-        } else if (isAfter(startDate, now) && t.status !== 'Completed') {
-          acc.upcoming.push(t);
-        } else if (isBefore(endDate, now) || t.status === 'Completed') {
+        // Prioritize DB status, but verify with dates for accuracy
+        if (t.status === 'Completed' || isBefore(endDate, now)) {
           acc.completed.push(t);
+        } else if (t.status === 'Upcoming' || isAfter(startDate, now)) {
+          acc.upcoming.push(t);
+        } else if (hasLiveMatches || t.status === 'Active' || isCurrentlyRunning) {
+          acc.live.push(t);
         }
 
         return acc;
@@ -133,7 +139,7 @@ const Tournament = () => {
 
     // Determine the real display status
     let displayStatus = "Completed";
-    let badgeClass = "bg-slate-100 text-slate-500 uppercase";
+    let badgeClass = "bg-white/10 text-white/50 uppercase";
 
     const hasLiveMatches = tournament.matches?.some((m: any) => m.status === 'live');
     const isCurrentlyRunning = (isBefore(startDate, now) || isSameDay(startDate, now)) &&
@@ -141,10 +147,10 @@ const Tournament = () => {
 
     if (hasLiveMatches || (tournament.status === 'Active' && isCurrentlyRunning)) {
       displayStatus = "LIVE";
-      badgeClass = "bg-red-50 text-red-600 border border-red-100 animate-pulse uppercase";
+      badgeClass = "bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse uppercase";
     } else if (isAfter(startDate, now)) {
       displayStatus = "UPCOMING";
-      badgeClass = "bg-amber-50 text-amber-600 border border-amber-100 uppercase";
+      badgeClass = "bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase";
     }
 
     return (
@@ -158,17 +164,17 @@ const Tournament = () => {
   const renderTournamentCard = (t: Tournament) => (
     <Card
       key={t.id}
-      className="group bg-white border-2 border-slate-100 hover:border-orange-500/20 rounded-[32px] overflow-hidden transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-1 cursor-pointer active:scale-95"
+      className="group bg-white/[0.03] border border-white/10 hover:border-orange-500/30 rounded-[32px] overflow-hidden transition-all duration-300 hover:-translate-y-1 cursor-pointer active:scale-95"
       onClick={() => navigate(`/tournaments/${t.id}`)}
     >
       <CardContent className="p-0">
         <div className="flex items-center gap-5 p-5">
           {/* Logo Area */}
-          <div className="w-16 h-16 rounded-[24px] bg-slate-50 flex items-center justify-center border-2 border-slate-100 group-hover:bg-orange-50 group-hover:border-orange-100 transition-colors shrink-0 overflow-hidden relative">
+          <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center border border-white/10 group-hover:bg-orange-500/10 group-hover:border-orange-500/30 transition-colors shrink-0 overflow-hidden relative">
             {t.logo_url ? (
               <img src={t.logo_url} className="w-full h-full object-cover" alt={t.name} />
             ) : (
-              <Trophy className="w-7 h-7 text-slate-300 group-hover:text-orange-400 transition-colors" />
+              <Trophy className="w-7 h-7 text-white/30 group-hover:text-orange-400 transition-colors" />
             )}
             <div className="absolute inset-0 bg-gradient-to-tr from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
@@ -176,18 +182,18 @@ const Tournament = () => {
           {/* Info Area */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1.5">
-              <h3 className="text-sm font-black italic uppercase text-slate-900 truncate tracking-tight group-hover:text-orange-600 transition-colors">
+              <h3 className="text-sm font-black italic uppercase text-white truncate tracking-tight group-hover:text-orange-500 transition-colors">
                 {t.name}
               </h3>
               {renderStatusBadge(t.status, t)}
             </div>
 
             <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5 text-slate-400">
+              <div className="flex items-center gap-1.5 text-white/40">
                 <MapPin className="w-3 h-3" />
                 <span className="text-[10px] font-black uppercase tracking-widest truncate">{t.city}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-slate-400">
+              <div className="flex items-center gap-1.5 text-white/40">
                 <Calendar className="w-3 h-3" />
                 <span className="text-[10px] font-black uppercase tracking-widest">
                   {format(new Date(t.start_date), 'MMM d')} - {format(new Date(t.end_date), 'MMM d, yyyy')}
@@ -198,8 +204,8 @@ const Tournament = () => {
 
           {/* CTA Arrow */}
           <div className="pl-2">
-            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center group-hover:bg-slate-900 transition-all duration-500 group-hover:scale-110">
-              <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-white transition-colors" />
+            <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-orange-500 group-hover:to-red-600 transition-all duration-500 group-hover:scale-110">
+              <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-white transition-colors" />
             </div>
           </div>
         </div>
@@ -240,14 +246,14 @@ const Tournament = () => {
 
     return (
       <div className="py-20 flex flex-col items-center justify-center text-center px-10">
-        <div className="w-24 h-24 rounded-[32px] bg-slate-50 flex items-center justify-center mb-6 relative overflow-hidden group">
-          <Icon className="w-10 h-10 text-slate-200 group-hover:text-orange-600 transition-colors relative z-10" />
+        <div className="w-24 h-24 rounded-[32px] bg-white/5 flex items-center justify-center mb-6 relative overflow-hidden group border border-white/10">
+          <Icon className="w-10 h-10 text-white/20 group-hover:text-orange-500 transition-colors relative z-10" />
           <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
-        <p className="text-xs font-black italic uppercase tracking-[0.2em] text-slate-400 mb-6">{config.msg}</p>
+        <p className="text-xs font-black italic uppercase tracking-[0.2em] text-white/40 mb-6">{config.msg}</p>
         <Button
           variant="outline"
-          className="rounded-2xl border-2 border-slate-100 text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all px-8 h-12"
+          className="rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest bg-white/5 text-white hover:bg-gradient-to-br hover:from-orange-500 hover:to-red-600 hover:text-white hover:border-transparent transition-all px-8 h-12"
           onClick={config.action}
         >
           {config.btn}
@@ -257,37 +263,40 @@ const Tournament = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900">
+    <div className="min-h-screen bg-[#050508] pb-24 font-sans text-white">
       {/* TOP BAR - FIXED */}
-      <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-6 h-16 shadow-sm">
+      <div className="sticky top-0 z-50 bg-[#050508]/80 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-6 h-16">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/20">
-            <Trophy className="w-5 h-5 text-amber-400" />
+          <button onClick={() => navigate('/home')} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+            <Trophy className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900">Tourneys</span>
+          <span className="text-xl font-black italic uppercase tracking-tighter">Tourneys</span>
         </div>
         <div className="flex items-center gap-3">
           <Sheet open={isSearchOpen} onOpenChange={setIsSearchOpen}>
             <SheetTrigger asChild>
-              <button className="p-2.5 hover:bg-slate-100 rounded-2xl transition-all text-slate-400 group">
-                <Search className="w-5 h-5 group-hover:text-slate-900 transition-colors" />
+              <button className="p-2.5 hover:bg-white/10 rounded-2xl transition-all text-white/50 group">
+                <Search className="w-5 h-5 group-hover:text-white transition-colors" />
               </button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-[32px] h-[400px] bg-white border-0 p-8 shadow-2xl">
+            <SheetContent side="bottom" className="rounded-t-[32px] h-[400px] bg-[#0a0a0f] border-t border-white/10 p-8 shadow-2xl">
               <SheetHeader className="mb-8">
-                <SheetTitle className="text-2xl font-black italic uppercase tracking-tighter text-slate-900 text-left">
+                <SheetTitle className="text-2xl font-black italic uppercase tracking-tighter text-white text-left">
                   Search & Filter
                 </SheetTitle>
               </SheetHeader>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Tournament Name / City</label>
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Tournament Name / City</label>
                   <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
                     <Input
                       placeholder="e.g. Pro Kabaddi, Mumbai..."
-                      className="rounded-2xl border-2 border-slate-100 bg-slate-50 h-14 pl-12 text-sm font-bold focus:ring-orange-500/20"
+                      className="rounded-2xl border border-white/10 bg-white/5 h-14 pl-12 text-sm font-bold text-white placeholder:text-white/30 focus:ring-orange-500/20 focus:border-orange-500/30"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -295,17 +304,17 @@ const Tournament = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Filter by City</label>
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Filter by City</label>
                   <div className="grid grid-cols-3 gap-2">
                     {['Mumbai', 'Delhi', 'Pune', 'Bangalore', 'Chennai'].map((city) => (
                       <button
                         key={city}
                         onClick={() => setCityFilter(cityFilter === city ? "" : city)}
                         className={cn(
-                          "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all",
+                          "h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
                           cityFilter === city
-                            ? "bg-slate-900 border-slate-900 text-white shadow-lg"
-                            : "bg-white border-slate-100 text-slate-400 hover:border-slate-200"
+                            ? "bg-gradient-to-br from-orange-500 to-red-600 border-transparent text-white shadow-lg"
+                            : "bg-white/5 border-white/10 text-white/50 hover:border-white/20"
                         )}
                       >
                         {city}
@@ -315,7 +324,7 @@ const Tournament = () => {
                 </div>
 
                 <Button
-                  className="w-full h-14 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-black italic uppercase tracking-widest shadow-xl shadow-orange-600/20"
+                  className="w-full h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 hover:opacity-90 text-white font-black italic uppercase tracking-widest shadow-xl shadow-orange-500/20"
                   onClick={() => setIsSearchOpen(false)}
                 >
                   Apply Filters
@@ -324,26 +333,24 @@ const Tournament = () => {
             </SheetContent>
           </Sheet>
 
-          {(userRole === 'organizer' || userRole === 'admin') && (
-            <button
-              onClick={() => navigate('/tournaments/create')}
-              className="w-10 h-10 bg-orange-600 hover:bg-orange-700 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-600/20 transition-all hover:scale-110 active:scale-95"
-            >
-              <Plus className="w-6 h-6 stroke-[3px]" />
-            </button>
-          )}
+          <button
+            onClick={() => navigate('/tournaments/create')}
+            className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 hover:opacity-90 text-white rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20 transition-all hover:scale-110 active:scale-95"
+          >
+            <Plus className="w-6 h-6 stroke-[3px]" />
+          </button>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto">
         {/* SEGMENTED TABS - STICKY */}
-        <div className="sticky top-16 z-40 bg-white/50 backdrop-blur-sm px-6 py-4 border-b border-slate-100/50">
+        <div className="sticky top-16 z-40 bg-[#050508]/80 backdrop-blur-xl px-6 py-4 border-b border-white/5">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex w-full bg-slate-100/50 p-1.5 rounded-2xl h-14 border border-slate-200/50">
-              <TabsTrigger value="live" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm transition-all border-0 ring-0">Live</TabsTrigger>
-              <TabsTrigger value="upcoming" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm transition-all border-0 ring-0">Upcoming</TabsTrigger>
-              <TabsTrigger value="completed" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all border-0 ring-0">History</TabsTrigger>
-              <TabsTrigger value="my" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm transition-all border-0 ring-0">My Hub</TabsTrigger>
+            <TabsList className="flex w-full bg-white/5 p-1.5 rounded-2xl h-14 border border-white/10">
+              <TabsTrigger value="live" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight text-white/50 data-[state=active]:bg-red-500 data-[state=active]:text-white transition-all border-0 ring-0">Live</TabsTrigger>
+              <TabsTrigger value="upcoming" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight text-white/50 data-[state=active]:bg-amber-500 data-[state=active]:text-white transition-all border-0 ring-0">Upcoming</TabsTrigger>
+              <TabsTrigger value="completed" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight text-white/50 data-[state=active]:bg-white/20 data-[state=active]:text-white transition-all border-0 ring-0">History</TabsTrigger>
+              <TabsTrigger value="my" className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-tight text-white/50 data-[state=active]:bg-blue-500 data-[state=active]:text-white transition-all border-0 ring-0">My Hub</TabsTrigger>
             </TabsList>
 
             <div className="mt-6 px-1">
@@ -351,11 +358,11 @@ const Tournament = () => {
                 {loading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
-                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                      <div key={i} className="bg-white/[0.03] border border-white/10 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px] bg-white/10" />
                         <div className="flex-1 space-y-3">
-                          <Skeleton className="h-4 w-3/4 rounded-full" />
-                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                          <Skeleton className="h-4 w-3/4 rounded-full bg-white/10" />
+                          <Skeleton className="h-3 w-1/2 rounded-full bg-white/10" />
                         </div>
                       </div>
                     ))}
@@ -369,11 +376,11 @@ const Tournament = () => {
                 {loading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
-                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                      <div key={i} className="bg-white/[0.03] border border-white/10 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px] bg-white/10" />
                         <div className="flex-1 space-y-3">
-                          <Skeleton className="h-4 w-3/4 rounded-full" />
-                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                          <Skeleton className="h-4 w-3/4 rounded-full bg-white/10" />
+                          <Skeleton className="h-3 w-1/2 rounded-full bg-white/10" />
                         </div>
                       </div>
                     ))}
@@ -387,11 +394,11 @@ const Tournament = () => {
                 {loading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
-                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                      <div key={i} className="bg-white/[0.03] border border-white/10 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px] bg-white/10" />
                         <div className="flex-1 space-y-3">
-                          <Skeleton className="h-4 w-3/4 rounded-full" />
-                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                          <Skeleton className="h-4 w-3/4 rounded-full bg-white/10" />
+                          <Skeleton className="h-3 w-1/2 rounded-full bg-white/10" />
                         </div>
                       </div>
                     ))}
@@ -405,11 +412,11 @@ const Tournament = () => {
                 {loading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="bg-white border-2 border-slate-100 rounded-[32px] p-5 flex items-center gap-5">
-                        <Skeleton className="w-16 h-16 rounded-[24px]" />
+                      <div key={i} className="bg-white/[0.03] border border-white/10 rounded-[32px] p-5 flex items-center gap-5">
+                        <Skeleton className="w-16 h-16 rounded-[24px] bg-white/10" />
                         <div className="flex-1 space-y-3">
-                          <Skeleton className="h-4 w-3/4 rounded-full" />
-                          <Skeleton className="h-3 w-1/2 rounded-full" />
+                          <Skeleton className="h-4 w-3/4 rounded-full bg-white/10" />
+                          <Skeleton className="h-3 w-1/2 rounded-full bg-white/10" />
                         </div>
                       </div>
                     ))}

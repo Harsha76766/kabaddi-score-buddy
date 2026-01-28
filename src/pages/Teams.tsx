@@ -96,10 +96,10 @@ const Teams = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="min-h-screen bg-[#050508] text-white pb-24">
       {/* Header */}
-      <div className="bg-gradient-hero p-6 pb-16 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+      <div className="bg-[#050508] border-b border-white/5 p-6 pb-16 text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         <div className="relative z-10 max-w-lg mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button
@@ -117,12 +117,12 @@ const Teams = () => {
 
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
             <Input
               placeholder="Search teams..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-14 rounded-2xl bg-white border-0 text-slate-900 font-medium shadow-xl"
+              className="pl-12 h-14 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 font-medium"
             />
           </div>
         </div>
@@ -133,36 +133,36 @@ const Teams = () => {
         {/* Create Team Button */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full h-14 bg-white rounded-2xl shadow-lg border-2 border-dashed border-orange-200 text-orange-600 hover:bg-orange-50 hover:border-orange-300 transition-all mb-6">
+            <Button className="w-full h-14 bg-white/[0.03] rounded-2xl border border-dashed border-orange-500/30 text-orange-500 hover:bg-orange-500/10 hover:border-orange-500/50 transition-all mb-6">
               <Plus className="w-5 h-5 mr-2" />
               <span className="font-black uppercase tracking-widest text-xs">Create New Team</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-[32px] border-0 shadow-2xl p-6">
             <DialogHeader>
-              <DialogTitle className="text-xl font-black italic uppercase tracking-tight text-slate-900 flex items-center gap-2">
+              <DialogTitle className="text-xl font-black italic uppercase tracking-tight text-white flex items-center gap-2">
                 <Users className="w-6 h-6 text-orange-600" />
                 Create Team
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreateTeam} className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Team Name</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Team Name</Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Thunder Warriors"
-                  className="h-14 rounded-2xl bg-slate-50 border-0 font-bold"
+                  className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-bold"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Captain Name</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-white/40">Captain Name</Label>
                 <Input
                   value={formData.captain_name}
                   onChange={(e) => setFormData({ ...formData, captain_name: e.target.value })}
                   placeholder="Rahul Chaudhari"
-                  className="h-14 rounded-2xl bg-slate-50 border-0 font-bold"
+                  className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white font-bold"
                   required
                 />
               </div>
@@ -179,12 +179,12 @@ const Teams = () => {
             <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-600 border-t-transparent"></div>
           </div>
         ) : filteredTeams.length === 0 ? (
-          <Card className="rounded-3xl border-0 shadow-lg">
+          <Card className="rounded-3xl border border-white/10 bg-white/[0.03] shadow-lg">
             <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <Users className="w-10 h-10 text-slate-300" />
+              <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mb-4">
+                <Users className="w-10 h-10 text-white/30" />
               </div>
-              <p className="text-slate-400 text-center font-medium">
+              <p className="text-white/40 text-center font-medium">
                 {searchQuery ? "No teams found" : "No teams yet. Create your first team!"}
               </p>
             </CardContent>
@@ -194,7 +194,7 @@ const Teams = () => {
             {filteredTeams.map((team) => (
               <Card
                 key={team.id}
-                className="rounded-3xl border-0 shadow-md hover:shadow-xl transition-all cursor-pointer group overflow-hidden"
+                className="rounded-3xl border border-white/10 bg-white/[0.03] shadow-md hover:shadow-xl transition-all cursor-pointer group overflow-hidden"
                 onClick={() => navigate(`/teams/${team.id}`)}
               >
                 <CardContent className="p-0">
@@ -210,22 +210,22 @@ const Teams = () => {
 
                     {/* Team Info */}
                     <div className="flex-1 ml-4 min-w-0">
-                      <h3 className="font-black text-slate-900 text-lg truncate group-hover:text-orange-600 transition-colors">
+                      <h3 className="font-black text-white text-lg truncate group-hover:text-orange-600 transition-colors">
                         {team.name}
                       </h3>
-                      <p className="text-sm text-slate-400 truncate">
-                        Captain: <span className="font-semibold text-slate-600">{team.captain_name}</span>
+                      <p className="text-sm text-white/40 truncate">
+                        Captain: <span className="font-semibold text-white/60">{team.captain_name}</span>
                       </p>
                       <div className="flex items-center gap-4 mt-2">
                         <div className="flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-blue-500" />
-                          <span className="text-xs font-bold text-slate-500">{team.players?.[0]?.count || 0} players</span>
+                          <span className="text-xs font-bold text-white/50">{team.players?.[0]?.count || 0} players</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Arrow */}
-                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-5 h-5 text-white/30 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
                   </div>
                 </CardContent>
               </Card>
@@ -238,3 +238,4 @@ const Teams = () => {
 };
 
 export default Teams;
+
